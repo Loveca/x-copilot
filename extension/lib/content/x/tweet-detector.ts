@@ -138,14 +138,43 @@ export class TweetDetector {
    */
   observe(callback: (tweet: TweetContext | null) => void): () => void {
     let lastId: string | null = null;
+    let nullTimer: ReturnType<typeof setTimeout> | undefined;
 
     const check = () => {
       const tweet = this.getCurrentTweet();
       const id = tweet?.id ?? null;
       if (id === lastId) return;
+
+      if (id === null) {
+        // 过渡态保护：Modal 挂载等场景会造成瞬间"页面上没有 article"，
+        // 不立即相信 null，延迟复查确认后才真正判定离开。
+        // （否则详情页点评论图标会误发 null → 取消生成 → 重新生成）
+        if (nullTimer) return;
+        nullTimer = setTimeout(() => {
+          nullTimer = undefined;
+          const t = this.getCurrentTweet();
+          if (t?.id) {
+            if (t.id !== lastId) {
+              lastId = t.id;
+              log('current tweet changed (delayed):', t.id, t.authorHandle ?? '');
+              callback(t);
+            }
+          } else {
+            lastId = null;
+            log('current tweet cleared');
+            callback(null);
+          }
+        }, 400);
+        return;
+      }
+
+      if (nullTimer) {
+        clearTimeout(nullTimer);
+        nullTimer = undefined;
+      }
       lastId = id;
       log('current tweet changed:', id, tweet?.authorHandle ?? '');
-      callback(id ? tweet : null);
+      callback(tweet);
     };
 
     const debouncedCheck = debounce(check, 300);
