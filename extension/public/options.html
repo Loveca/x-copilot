@@ -5,42 +5,46 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>X Copilot 设置</title>
   <style>
+    /* X 暗色主题：bg #000 / surface #16181c / border #2f3336 / text #e7e9ea / muted #71767b */
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
-      background: #f7f9f9;
+      background: #000;
+      color: #e7e9ea;
       margin: 0;
       padding: 40px 16px;
       display: flex;
       justify-content: center;
     }
     .card {
-      background: #fff;
-      border: 1px solid #e6e9ec;
+      background: #16181c;
+      border: 1px solid #2f3336;
       border-radius: 16px;
       padding: 28px 32px;
       width: 100%;
       max-width: 480px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
     }
     h1 { font-size: 20px; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; }
     .logo {
       width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
-      background: linear-gradient(135deg, #1d9bf0 0%, #4d6bfe 100%);
-      color: #fff; font-size: 16px; line-height: 30px; text-align: center;
+      background: #e7e9ea;
+      color: #000; font-size: 16px; line-height: 30px; text-align: center;
     }
-    .sub { color: #8b98a5; font-size: 13px; margin: 0 0 24px; }
-    label { display: block; font-size: 13px; font-weight: 700; margin: 16px 0 6px; color: #0f1419; }
-    .desc { font-size: 12px; color: #8b98a5; margin: 0 0 6px; line-height: 1.5; }
+    .sub { color: #71767b; font-size: 13px; margin: 0 0 24px; }
+    label { display: block; font-size: 13px; font-weight: 700; margin: 16px 0 6px; color: #e7e9ea; }
+    .desc { font-size: 12px; color: #71767b; margin: 0 0 6px; line-height: 1.5; }
     input {
       width: 100%;
-      border: 1px solid #cfd9de;
+      background: #000;
+      color: #e7e9ea;
+      border: 1px solid #2f3336;
       border-radius: 10px;
       padding: 10px 12px;
       font-size: 14px;
       box-sizing: border-box;
       outline: none;
     }
-    input:focus { border-color: #1d9bf0; box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.15); }
+    input:focus { border-color: #536471; }
+    input::placeholder { color: #536471; }
     button {
       margin-top: 24px;
       width: 100%;
@@ -49,14 +53,16 @@
       padding: 11px 0;
       font-size: 14px;
       font-weight: 700;
-      color: #fff;
+      color: #000;
       cursor: pointer;
-      background: linear-gradient(135deg, #1d9bf0 0%, #4d6bfe 100%);
+      background: #e7e9ea;
+      transition: background 0.15s ease;
     }
+    button:hover { background: #d7dbdc; }
     .status { text-align: center; font-size: 13px; margin-top: 12px; min-height: 18px; }
-    .status.ok { color: #00a06a; }
-    .status.err { color: #c0392b; }
-    a { color: #1d9bf0; text-decoration: none; }
+    .status.ok { color: #e7e9ea; }
+    .status.err { color: #f4212e; }
+    a { color: #e7e9ea; text-decoration: underline; }
   </style>
 </head>
 <body>
