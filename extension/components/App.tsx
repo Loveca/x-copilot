@@ -42,6 +42,10 @@ function friendlyError(e: unknown): string {
 const secs = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 const chars = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
+// Clean 模块（评论清理）当前暂停：保留全部代码，仅关闭「打开帖子 / 评论区变化时自动扫描」的自动行为。
+// 面板底部的「盾 + 清理」按钮仍可在用户手动点击时运行一次扫描；后续完善后把此开关置为 true 即可恢复。
+const CLEAN_AUTO_ENABLED = false;
+
 /** M0 Spike 用的测试文本：明显是测试，方便用户一眼识别并删除 */
 const POST_SPIKE_TEXT =
   '【X Copilot 发帖框测试】这段文字用于验证主发帖框能否被写入，请手动删除，不要发送。';
@@ -383,14 +387,16 @@ export function App() {
     setToast(hidden > 0 ? `已隐藏 ${hidden} 条垃圾评论` : '没有发现需要清理的评论');
   }, [scanReplies]);
 
-  // 评论清理：切换帖子后延迟跑一次（等回复渲染出来）
+  // 评论清理：切换帖子后延迟跑一次（等回复渲染出来）—— 当前已暂停（CLEAN_AUTO_ENABLED=false）
   useEffect(() => {
+    if (!CLEAN_AUTO_ENABLED) return;
     const timer = setTimeout(() => void scanReplies(), 900);
     return () => clearTimeout(timer);
   }, [tweet, scanReplies]);
 
-  // 评论清理：评论区向下加载 / DOM 变化时增量重扫（折叠本身也会触发，靠幂等标记兜住）
+  // 评论清理：评论区向下加载 / DOM 变化时增量重扫（折叠本身也会触发，靠幂等标记兜住）—— 当前已暂停
   useEffect(() => {
+    if (!CLEAN_AUTO_ENABLED) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const run = () => {
       if (timer) clearTimeout(timer);
@@ -449,7 +455,7 @@ export function App() {
         mode={mode}
         onModeChange={changeMode}
         postDisabled={!!tweet}
-        onClean={runClean}
+        onClean={CLEAN_AUTO_ENABLED ? runClean : undefined}
       >
         {tweet ? (
           <div className="xc-tweet-card">

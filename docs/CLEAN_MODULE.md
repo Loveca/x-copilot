@@ -2,7 +2,7 @@
 
 > 需求来源：`PROJECT.md` §25（仓库根目录，原始叫 "Feed Cleaner"，本文档与代码统一称 **Clean**）。技术选型见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
 >
-> **状态：A 期已实现（2026-09-15）**，方案已确认。评论区清理可用；首页时间线（B 期）未开始。
+> **状态：A 期已实现（2026-09-15），但当前已暂停（2026-09-15）**。方案已确认、评论区清理代码可用；UI 入口已隐藏、自动扫描已关闭——**代码全部保留，恢复只需把 `extension/components/App.tsx` 顶部的 `CLEAN_AUTO_ENABLED` 置为 `true`**（同步恢复设置页「评论清理」分区与面板底部清理按钮）。首页时间线（B 期）未开始。
 >
 > 命名说明：文档名与其它模块对齐（`REPLY_MODULE.md` / `POST_MODULE.md` / `CLEAN_MODULE.md`）。模块名为 **Clean** 而非 "Feed Cleaner"，因为它不止清理信息流——A 期清理的是帖子详情页的评论区，后续还可扩展到更多场景。代码侧对应 `clean-classifier.ts` / `clean-hider.ts`。
 

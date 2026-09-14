@@ -264,7 +264,8 @@ export const CSS_TEXT = `
 .xc-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 4px;
   padding: 8px 12px;
   border-top: 1px solid #eff3f4;
   flex-shrink: 0;
