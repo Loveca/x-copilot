@@ -13,3 +13,9 @@
 ## 用户偏好（本项目）
 - 先方案/选项确认再动手；对输出质量要求高（视觉精美、可直接用）。
 - 沟通直接，反馈激烈时快速迭代而非辩解。
+
+## 仓库约定
+- Git 身份：Loveca <Loveca@users.noreply.github.com>（GitHub 用户名 Loveca），已写入本仓库 local config；历史提交已批量重写为该身份。
+- 远端：origin = https://github.com/Loveca/x-copilot.git（master 已跟踪）。
+- 网络：本机直连 github.com 不通，需走本地代理 127.0.0.1:7897（Clash 混合端口）；已配置仓库级 `http.https://github.com.proxy`。若某天推送失败且报连接重置，先确认代理是否在运行、端口是否变化。
+- 本项目历史曾因环境丢文件而丢失，为避免再次发生，重要变更后应及时 `git push`。
