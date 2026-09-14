@@ -83,39 +83,7 @@
     <div id="status" class="status"></div>
   </div>
 
-  <script>
-    var DEFAULTS = { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-flash', apiKey: '' };
-    var KEY = 'llmConfig';
-
-    var $apiKey = document.getElementById('api-key');
-    var $model = document.getElementById('model');
-    var $baseUrl = document.getElementById('base-url');
-    var $status = document.getElementById('status');
-
-    function setStatus(text, ok) {
-      $status.textContent = text;
-      $status.className = 'status ' + (ok ? 'ok' : 'err');
-    }
-
-    chrome.storage.local.get(KEY).then(function (res) {
-      var cfg = Object.assign({}, DEFAULTS, res[KEY] || {});
-      $apiKey.value = cfg.apiKey || '';
-      $model.value = cfg.model || '';
-      $baseUrl.value = cfg.baseUrl || '';
-    });
-
-    document.getElementById('save').addEventListener('click', function () {
-      if (!$apiKey.value.trim()) {
-        setStatus('API Key 不能为空。', false);
-        return;
-      }
-      var cfg = { apiKey: $apiKey.value.trim(), model: $model.value.trim() || DEFAULTS.model, baseUrl: $baseUrl.value.trim() || DEFAULTS.baseUrl };
-      chrome.storage.local.set({ llmConfig: cfg }).then(function () {
-        setStatus('✓ 已保存，配置立即生效。', true);
-      }).catch(function () {
-        setStatus('保存失败，请重试。', false);
-      });
-    });
-  </script>
+  <!-- MV3 CSP 禁止内联 script，脚本必须放外部文件 -->
+  <script src="options.js"></script>
 </body>
 </html>
