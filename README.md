@@ -4,7 +4,7 @@
 
 在浏览 X 时，点开悬浮球 ✦，Copilot 自动识别当前 Tweet，生成 5 条不同风格的回复候选（观点 / 补充 / 反向 / 简短 / 水贴），点击「填入」写入 Reply 输入框，由你自己检查后发送。
 
-技术方案见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)，产品需求见 [`docs/PROJECT.md`](docs/PROJECT.md)。
+技术方案见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)，产品需求见 [`docs/PROJECT.md`](docs/PROJECT.md)，回复生成模块的功能全景见 [`docs/REPLY_MODULE.md`](docs/REPLY_MODULE.md)。
 
 ## 技术架构
 
