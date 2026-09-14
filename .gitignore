@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Build output
+extension/.output/
+extension/.wxt/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
