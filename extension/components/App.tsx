@@ -3,7 +3,12 @@ import { browser } from 'wxt/browser';
 import { TweetDetector } from '@/lib/content/x/tweet-detector';
 import { findReplyComposer } from '@/lib/content/x/composer-detector';
 import { fillReplyComposer } from '@/lib/content/x/fill';
-import { DEFAULT_UI_CONFIG, UI_CONFIG_STORAGE_KEY, normalizeUIConfig } from '@/lib/config';
+import {
+  DEFAULT_UI_CONFIG,
+  GENERATE_PORT,
+  UI_CONFIG_STORAGE_KEY,
+  normalizeUIConfig,
+} from '@/lib/config';
 import type { ReplyCandidate, TweetContext, UIConfig } from '@/types';
 import { FloatingButton } from './FloatingButton';
 import { Panel } from './Panel';
@@ -48,6 +53,8 @@ export function App() {
   const cacheRef = useRef<Map<string, ReplyCandidate[]>>(new Map());
   // 生成序号：生成过程中切换 Tweet 时，旧结果作废，避免错挂到新 Tweet
   const genSeqRef = useRef(0);
+  // 当前流式生成的长连接（取消/切帖时断开）
+  const activePortRef = useRef<ReturnType<typeof browser.runtime.connect> | null>(null);
   // 自动生成开关（设置页可关，改动即时生效）
   const autoGenerateRef = useRef(DEFAULT_UI_CONFIG.autoGenerate);
 
@@ -73,7 +80,7 @@ export function App() {
     return () => browser.storage.onChanged.removeListener(onChanged);
   }, []);
 
-  // 生成回复候选（手动「生成回复」与自动触发共用）
+  // 生成回复候选（流式：候选一到就先渲染；手动与自动触发共用）
   const runGenerate = useCallback(
     async (target: TweetContext, auto: boolean, intentText = '') => {
       const cleanIntent = intentText.trim();
@@ -91,27 +98,46 @@ export function App() {
       setGenerating(true);
       setError(undefined);
       if (auto) setToast('检测到新 Tweet，正在自动生成回复……');
-      try {
-        const result = await browser.runtime.sendMessage({
-          type: 'GENERATE_REPLIES',
-          tweet: target,
-          options: { count: 5, intent: cleanIntent || undefined },
-        });
-        // 生成期间已切换到其他 Tweet：丢弃本次结果
-        if (seq !== genSeqRef.current) return;
-        if (Array.isArray(result) && result.length > 0) {
-          setReplies(result);
-          cacheRef.current.set(key, result);
-          if (auto) setToast('回复已生成');
-        } else {
-          setError('生成失败，请稍后重试。');
+
+      const port = browser.runtime.connect({ name: GENERATE_PORT });
+      activePortRef.current = port;
+      let settled = false;
+
+      port.onMessage.addListener((raw: unknown) => {
+        const msg = raw as { type?: string; replies?: ReplyCandidate[]; message?: string };
+        if (seq !== genSeqRef.current) {
+          port.disconnect();
+          return;
         }
-      } catch (e) {
-        if (seq !== genSeqRef.current) return;
-        setError(friendlyError(e));
-      } finally {
-        if (seq === genSeqRef.current) setGenerating(false);
-      }
+        if (msg.type === 'partial' && Array.isArray(msg.replies)) {
+          // 逐条到达：先渲染出来，用户可以先看/先填
+          setReplies(msg.replies);
+        } else if (msg.type === 'done' && Array.isArray(msg.replies)) {
+          settled = true;
+          activePortRef.current = null;
+          setReplies(msg.replies);
+          cacheRef.current.set(key, msg.replies);
+          if (auto) setToast('回复已生成');
+          setGenerating(false);
+          port.disconnect();
+        } else if (msg.type === 'error') {
+          settled = true;
+          activePortRef.current = null;
+          setError(friendlyError(new Error(msg.message ?? '')));
+          setGenerating(false);
+          port.disconnect();
+        }
+      });
+
+      port.onDisconnect.addListener(() => {
+        if (settled || seq !== genSeqRef.current) return;
+        // 连接意外中断（如 Service Worker 被回收）
+        activePortRef.current = null;
+        setGenerating(false);
+        setError('生成中断，请重试。');
+      });
+
+      port.postMessage({ tweet: target, options: { intent: cleanIntent || undefined } });
     },
     []
   );
@@ -119,6 +145,8 @@ export function App() {
   // 取消在途生成（关闭 Modal / 离开 Tweet 时调用）
   const cancelGeneration = useCallback(() => {
     genSeqRef.current++;
+    activePortRef.current?.disconnect();
+    activePortRef.current = null;
     setGenerating(false);
   }, []);
 

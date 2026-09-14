@@ -59,6 +59,9 @@ export const DEFAULT_UI_CONFIG: UIConfig = {
 
 export const UI_CONFIG_STORAGE_KEY = 'uiConfig';
 
+/** 流式生成使用的长连接端口名（background 与 content script 共用） */
+export const GENERATE_PORT = 'generate-replies';
+
 export const MAX_COUNT_PER_STYLE = 3;
 export const MAX_TOTAL_REPLIES = 10;
 
