@@ -19,6 +19,8 @@
       label: 'DeepSeek 官方',
       baseUrl: 'https://api.deepseek.com/v1',
       model: 'deepseek-flash',
+      models: ['deepseek-flash', 'deepseek-v4-pro'],
+      modelsDesc: '默认 deepseek-flash（快、便宜）；deepseek-v4-pro 更强但更贵更慢。',
       keyPlaceholder: 'sk-...',
       keyDesc:
         '在 <a href="https://platform.deepseek.com/" target="_blank" rel="noreferrer">DeepSeek 开放平台</a> 获取，格式 sk-...',
@@ -29,22 +31,27 @@
       key: 'gemini',
       label: 'Google Gemini（有免费额度）',
       baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-      model: 'gemini-flash-lite-latest',
+      model: 'gemini-flash-latest',
+      models: ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-pro-latest'],
+      modelsDesc:
+        '默认 gemini-flash-latest（均衡）；flash-lite 更轻更快、额度更宽；pro 效果更强但额度更紧。具体额度以 Google AI Studio 为准。',
       keyPlaceholder: 'AIza...',
       keyDesc:
         '在 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio</a> 免费获取，格式 AIza...；免费额度有限流，超了会报错。',
       thinkingDesc:
-        'Gemini 同样默认带思考。关闭后首条候选明显更快；注意 Gemini 3 系列无法完全关闭思考，只会退到最低档。',
+        'Gemini 同样默认带思考（实测开了要等 7 秒才出首条）。关闭后首条候选 1 秒出头，和 DeepSeek 差不多；注意 Gemini 3 系列无法完全关闭思考，只会退到最低档。',
     },
     {
       key: 'custom',
       label: '自定义',
       baseUrl: '',
       model: '',
+      models: [],
+      modelsDesc: '任意 OpenAI 兼容服务商的模型名。',
       keyPlaceholder: 'sk-...',
       keyDesc: '任意 OpenAI 兼容服务商的 API Key。',
       thinkingDesc:
-        '仅 DeepSeek / Gemini 会自动附加对应的思考模式参数；其他服务商不附加，需要时请自行在下方 Base URL 使用对应服务商的关闭方式。',
+        '仅 DeepSeek / Gemini 会自动附加对应的思考模式参数；其他服务商不附加，需要时请自行使用对应服务商的关闭方式。',
     },
   ];
 
@@ -156,27 +163,91 @@
   // ---------- 模型配置 ----------
   var $provider = document.getElementById('provider');
   var $apiKey = document.getElementById('api-key');
+  var $modelSelect = document.getElementById('model-select');
   var $model = document.getElementById('model');
   var $baseUrl = document.getElementById('base-url');
   var $thinking = document.getElementById('thinking');
   var $statusLlm = document.getElementById('status-llm');
   var $providerDesc = document.getElementById('provider-desc');
   var $apiKeyDesc = document.getElementById('api-key-desc');
+  var $modelDesc = document.getElementById('model-desc');
   var $thinkingDesc = document.getElementById('thinking-desc');
 
   // 各服务商各自记住的 Key，切换服务商时自动回填
   var llmKeys = {};
+  var MODEL_CUSTOM = '__custom__';
 
   function setStatus(el, text, ok) {
     el.textContent = text;
     el.className = 'status ' + (ok ? 'ok' : 'err');
   }
 
-  function applyProviderHint(p, keepValues) {
-    if (!keepValues) {
-      if (p.baseUrl) $baseUrl.value = p.baseUrl;
-      if (p.model) $model.value = p.model;
+  /** 当前生效的模型名（下拉选中项，或「自定义…」时文本框里的值） */
+  function getModelValue() {
+    if ($modelSelect.style.display === 'none') return $model.value.trim();
+    if ($modelSelect.value === MODEL_CUSTOM) return $model.value.trim();
+    return $modelSelect.value;
+  }
+
+  /** 按服务商渲染模型控件：有预设就用下拉，选「自定义…」再露出文本框 */
+  function renderModelControl(p, currentModel) {
+    $modelDesc.textContent = p.modelsDesc || '';
+    var models = p.models || [];
+
+    if (models.length === 0) {
+      $modelSelect.style.display = 'none';
+      $model.value = currentModel || '';
+      $model.placeholder = '输入模型名';
+      $model.style.display = 'block';
+      return;
     }
+
+    $modelSelect.innerHTML = '';
+    models.forEach(function (m) {
+      var opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = m;
+      $modelSelect.appendChild(opt);
+    });
+    // 存的是预设之外的自定义模型名时，补一个选项，避免静默丢失
+    if (currentModel && models.indexOf(currentModel) < 0) {
+      var extra = document.createElement('option');
+      extra.value = currentModel;
+      extra.textContent = currentModel + '（当前）';
+      $modelSelect.appendChild(extra);
+    }
+    var custom = document.createElement('option');
+    custom.value = MODEL_CUSTOM;
+    custom.textContent = '自定义…';
+    $modelSelect.appendChild(custom);
+
+    $modelSelect.style.display = 'block';
+    if (!currentModel) {
+      $modelSelect.value = MODEL_CUSTOM;
+      $model.value = '';
+      $model.placeholder = '输入模型名';
+      $model.style.display = 'block';
+    } else {
+      $modelSelect.value = currentModel;
+      $model.value = currentModel;
+      $model.style.display = 'none';
+    }
+  }
+
+  $modelSelect.addEventListener('change', function () {
+    if ($modelSelect.value === MODEL_CUSTOM) {
+      $model.value = '';
+      $model.placeholder = '输入模型名';
+      $model.style.display = 'block';
+      $model.focus();
+    } else {
+      $model.value = $modelSelect.value;
+      $model.style.display = 'none';
+    }
+  });
+
+  function applyProviderHint(p, keepValues) {
+    if (!keepValues && p.baseUrl) $baseUrl.value = p.baseUrl;
     $apiKey.placeholder = p.keyPlaceholder || 'sk-...';
     $apiKeyDesc.innerHTML = p.keyDesc;
     $thinkingDesc.textContent = p.thinkingDesc;
@@ -184,6 +255,7 @@
       p.key === 'custom'
         ? '填入任意 OpenAI 兼容服务商的 Base URL 与模型名。'
         : '已按「' + p.label + '」填入 Base URL 与模型，仍可手动修改。';
+    renderModelControl(p, keepValues ? $model.value.trim() : p.model || '');
   }
 
   chrome.storage.local.get(LLM_KEY).then(function (res) {
@@ -217,6 +289,11 @@
       setStatus($statusLlm, 'API Key 不能为空。', false);
       return;
     }
+    var model = getModelValue();
+    if (!model) {
+      setStatus($statusLlm, '模型名不能为空。', false);
+      return;
+    }
     var baseUrl = $baseUrl.value.trim() || LLM_DEFAULTS.baseUrl;
     var urlKey = normalizeUrl(baseUrl);
 
@@ -228,7 +305,7 @@
       return chrome.storage.local.set({
         llmConfig: {
           apiKey: key,
-          model: $model.value.trim() || LLM_DEFAULTS.model,
+          model: model,
           baseUrl: baseUrl,
           thinking: $thinking.checked === true,
           apiKeys: keys,

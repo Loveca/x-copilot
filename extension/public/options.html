@@ -330,8 +330,10 @@
         <p class="desc" id="api-key-desc">在 DeepSeek 开放平台获取，格式 sk-...</p>
         <input id="api-key" type="password" placeholder="sk-..." />
 
-        <label for="model">模型</label>
-        <input id="model" type="text" placeholder="deepseek-flash" />
+        <label for="model-select">模型</label>
+        <p class="desc" id="model-desc"></p>
+        <select id="model-select"></select>
+        <input id="model" type="text" placeholder="输入模型名" style="display: none; margin-top: 8px;" />
 
         <label for="base-url">API Base URL</label>
         <input id="base-url" type="text" placeholder="https://api.deepseek.com/v1" />

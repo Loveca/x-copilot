@@ -31,7 +31,8 @@
 
 - **可切换服务商**（设置页「模型配置 → 服务商」）：DeepSeek 官方 / Google Gemini（有免费额度）/ 自定义；切换时自动填入该服务商的 Base URL 与模型，各服务商的 API Key 分别记住、来回切自动回填
 - 思考模式参数**按服务商分派**：DeepSeek 发 `thinking:{type}`，Gemini 发 `reasoning_effort`，其他服务商不发扩展参数。若服务商以 HTTP 400 拒收这些参数，会自动去掉参数重试一次
-- OpenAI 兼容协议；DeepSeek 默认 `deepseek-flash`，Gemini 默认 `gemini-flash-lite-latest`；Base URL 与模型均可手动改
+- OpenAI 兼容协议；DeepSeek 默认 `deepseek-flash`，Gemini 默认 `gemini-flash-latest`（另有 `gemini-flash-lite-latest` / `gemini-pro-latest`）；模型以「预设下拉」或「自定义…」输入两种方式提供，Base URL 可手动改
+- **思考模式开关的实测影响**（Gemini，同一模型同一内容）：开 = 首字节 7.0s / 首条 7.0s / 完成 8.1s；关 = 1.0s / 1.2s / 2.2s。关闭后与 DeepSeek 同量级（首条 0.8s）
 - **流式生成**：走 `runtime.connect` 长连接，background 边收边把候选推给面板，**第一条候选到达即渲染**，可先看先填；非流式路径保留作兜底
 - **输出格式为 NDJSON**（每行一个完整 JSON 对象 `{"style":"…","text":"…"}`），这是能逐行解析的前提；解析器同时兼容整体 JSON 数组、代码栅栏、尾随逗号等噪音
 - 请求只从 **background service worker** 发出（解决 CORS + 保护 API Key）；Key 仅存 `chrome.storage.local`

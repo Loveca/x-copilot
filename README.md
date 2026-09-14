@@ -40,7 +40,7 @@ npm install
 
 1. 取一个 API Key：[DeepSeek 开放平台](https://platform.deepseek.com/)（`sk-...`）或 [Google AI Studio](https://aistudio.google.com/apikey)（`AIza...`，有免费额度）
 2. 构建完成后，加载插件 → 打开任意 X 页面 → 点击 ✦ 悬浮球 → Panel **左下角「设置」** → 在「模型配置」里选**服务商** → 填入 API Key → 保存
-3. 选服务商会自动填入对应的 Base URL 与模型（DeepSeek 默认 `deepseek-flash`；Gemini 默认 `gemini-flash-lite-latest`），也可手动改；各服务商的 Key 会分别记下来，来回切换自动回填
+3. 选服务商会自动填入对应的 Base URL 与模型（DeepSeek 默认 `deepseek-flash`；Gemini 默认 `gemini-flash-latest`，另有 `gemini-flash-lite-latest` / `gemini-pro-latest` 可选），模型是下拉框，选「自定义…」可手动填；各服务商的 Key 会分别记下来，来回切换自动回填
 
 设置页分为三个分区（左侧导航切换）：
 
