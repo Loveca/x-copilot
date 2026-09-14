@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
-import { TweetDetector, collectTimelineTweets } from '@/lib/content/x/tweet-detector';
+import {
+  TweetDetector,
+  collectReplyTweets,
+  collectTimelineTweets,
+} from '@/lib/content/x/tweet-detector';
+import { classifyTweet, signature } from '@/lib/content/x/feed-classifier';
+import { hideTweet, resetAllHidden } from '@/lib/content/x/feed-hider';
 import { findReplyComposer, findPostComposer, isPostButtonEnabled } from '@/lib/content/x/composer-detector';
 import { fillReplyComposer, fillComposer } from '@/lib/content/x/fill';
 import {
@@ -76,6 +82,8 @@ export function App() {
   const [debugTiming, setDebugTiming] = useState(DEFAULT_UI_CONFIG.debugTiming);
   const genStartRef = useRef(0);
   const intentRef = useRef<HTMLTextAreaElement | null>(null);
+  // 本次会话内用户点过「显示」的内容，不再自动隐藏
+  const restoredRef = useRef<Set<string>>(new Set());
   const cacheRef = useRef<Map<string, ReplyCandidate[]>>(new Map());
   // 生成序号：生成过程中切换 Tweet 时，旧结果作废，避免错挂到新 Tweet
   const genSeqRef = useRef(0);
@@ -316,6 +324,86 @@ export function App() {
     [applyMode, tweet]
   );
 
+  /** 把某条内容加入「永远隐藏此类」 */
+  const rememberSignature = useCallback(async (sig: string) => {
+    if (!sig) return;
+    try {
+      const res = await browser.storage.local.get(UI_CONFIG_STORAGE_KEY);
+      const next = normalizeUIConfig(res[UI_CONFIG_STORAGE_KEY] as Partial<UIConfig> | undefined);
+      if (next.cleaner.alwaysHideSignatures.includes(sig)) return;
+      next.cleaner.alwaysHideSignatures.push(sig);
+      uiConfigRef.current = next;
+      await browser.storage.local.set({ [UI_CONFIG_STORAGE_KEY]: next });
+    } catch {
+      /* 存储失败不影响使用 */
+    }
+  }, []);
+
+  /** 扫描当前页面的回复并折叠命中的（返回本次新隐藏的条数） */
+  const scanReplies = useCallback(() => {
+    const cfg = uiConfigRef.current.cleaner;
+    if (!cfg.enabled) return 0;
+
+    const entries = collectReplyTweets(tweet?.id);
+    if (entries.length === 0) return 0;
+
+    const all = entries.map((e) => e.tweet);
+    let hidden = 0;
+    entries.forEach((entry) => {
+      const sig = signature(entry.tweet.text);
+      if (sig && restoredRef.current.has(sig)) return;
+      const verdict = classifyTweet(entry.tweet, all, cfg);
+      if (!verdict) return;
+      const ok = hideTweet(entry.el, verdict, {
+        onShow: () => {
+          if (sig) restoredRef.current.add(sig);
+        },
+        onAlways: () => void rememberSignature(sig),
+      });
+      if (ok) hidden++;
+    });
+
+    if (hidden > 0) {
+      const next = normalizeUIConfig({ ...uiConfigRef.current, cleaner: { ...cfg, hiddenCount: cfg.hiddenCount + hidden } });
+      uiConfigRef.current = next;
+      void browser.storage.local.set({ [UI_CONFIG_STORAGE_KEY]: next }).catch(() => {});
+    }
+    return hidden;
+  }, [tweet, rememberSignature]);
+
+  /** 「🛡 清理」按钮：清掉已有折叠后按当前设置重扫一遍 */
+  const runClean = useCallback(() => {
+    const cfg = uiConfigRef.current.cleaner;
+    if (!cfg.enabled) {
+      setToast('评论清理已关闭，可在设置里打开');
+      return;
+    }
+    resetAllHidden();
+    const hidden = scanReplies();
+    setToast(hidden > 0 ? `已隐藏 ${hidden} 条垃圾评论` : '没有发现需要清理的评论');
+  }, [scanReplies]);
+
+  // 评论清理：切换帖子后延迟跑一次（等回复渲染出来）
+  useEffect(() => {
+    const timer = setTimeout(() => void scanReplies(), 900);
+    return () => clearTimeout(timer);
+  }, [tweet, scanReplies]);
+
+  // 评论清理：评论区向下加载 / DOM 变化时增量重扫（折叠本身也会触发，靠幂等标记兜住）
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const run = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void scanReplies(), 1200);
+    };
+    const observer = new MutationObserver(run);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      if (timer) clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [scanReplies]);
+
   const openSettings = useCallback(async () => {
     try {
       await browser.runtime.sendMessage({ type: 'OPEN_OPTIONS' });
@@ -361,6 +449,7 @@ export function App() {
         mode={mode}
         onModeChange={changeMode}
         postDisabled={!!tweet}
+        onClean={runClean}
       >
         {tweet ? (
           <div className="xc-tweet-card">

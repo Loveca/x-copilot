@@ -8,6 +8,10 @@ export interface TweetContext {
   likeCount?: number;
   repostCount?: number;
   replyCount?: number;
+  /** 作者是否是用户已关注的账号（Feed Cleaner 白名单用） */
+  isFollowing?: boolean;
+  /** 作者是否是认证账号（Feed Cleaner 白名单用） */
+  isVerified?: boolean;
   quotedTweet?: TweetContext;
   /** 帖子里的照片附件（已归一化为 pbs.twimg.com 的 small 变体，最多 4 张） */
   images?: string[];
@@ -57,6 +61,34 @@ export interface LLMConfig {
   apiKeys?: Record<string, string>;
 }
 
+/** 垃圾内容类别（PROJECT.md §25） */
+export type SpamCategory = 'repeat' | 'bot' | 'adult' | 'gamble' | 'scam' | 'ad';
+
+/** 判定结果：命中哪一类、依据是什么 */
+export interface SpamVerdict {
+  category: SpamCategory;
+  /** 给用户看的一句话理由 */
+  reason: string;
+  /** 命中的具体信号（关键词 / 特征名） */
+  signals: string[];
+}
+
+/** Feed Cleaner 配置（PROJECT.md §25 Phase 5） */
+export interface CleanerConfig {
+  /** 总开关 */
+  enabled: boolean;
+  /** 各类别是否启用 */
+  categories: Record<SpamCategory, boolean>;
+  /** 豁免我关注的账号 */
+  whitelistFollowing: boolean;
+  /** 豁免认证账号 */
+  whitelistVerified: boolean;
+  /** 用户点过「永远隐藏此类内容」后记下的文本签名（归一化后的文本） */
+  alwaysHideSignatures: string[];
+  /** 累计隐藏条数，仅用于设置页展示 */
+  hiddenCount: number;
+}
+
 /** 交互类配置 */
 export interface UIConfig {
   /** 打开/切换 Tweet 时是否自动生成回复 */
@@ -65,6 +97,8 @@ export interface UIConfig {
   styles: StyleConfig[];
   /** 发帖风格配置（Phase 2 Post Copilot，与回复风格分开） */
   postStyles: StyleConfig[];
+  /** Feed Cleaner：垃圾评论 / 帖子清理（PROJECT.md §25） */
+  cleaner: CleanerConfig;
   /** 面板底部是否显示耗时/字数等诊断信息（开发者用，默认关） */
   debugTiming: boolean;
 }

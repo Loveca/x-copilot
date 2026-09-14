@@ -68,6 +68,10 @@ function extractArticle(article: Element, id?: string, handleHint?: string): Twe
   const timeEl = article.querySelector(X_SELECTORS.time);
   const timestamp = timeEl?.getAttribute('datetime') ?? undefined;
 
+  // Feed Cleaner 白名单：认证账号 / 已关注账号
+  const isVerified = article.querySelector('[data-testid="icon-verified"]') !== null;
+  const isFollowing = /(following|正在关注|已关注|正在跟隨)/i.test(userNameEl?.textContent ?? '');
+
   const likeCount = parseCount(article.querySelector(X_SELECTORS.like));
   const repostCount = parseCount(article.querySelector(X_SELECTORS.retweet));
   const replyCount = parseCount(article.querySelector(X_SELECTORS.reply));
@@ -82,6 +86,8 @@ function extractArticle(article: Element, id?: string, handleHint?: string): Twe
     likeCount,
     repostCount,
     replyCount,
+    isFollowing,
+    isVerified,
   };
 
   // 帖子图片（照片附件，最多 4 张）
@@ -135,6 +141,42 @@ function hashKey(s: string): string {
  * - 但在 x.com/home 里点回复图标弹出的 Reply Modal 不改变 URL，
  *   此时从可见 dialog 内的被回复帖子 article 提取上下文。
  */
+/** 单条帖子 + 它的 DOM 元素（Feed Cleaner 需要元素引用才能折叠） */
+export interface TweetEntry {
+  tweet: TweetContext;
+  el: HTMLElement;
+}
+
+/**
+ * 收集当前页面可作为「回复 / 时间线项」的帖子（含元素引用）。
+ * - 排除主推文本身（详情页里它就是 URL 上那条）
+ * - 排除嵌套在其它 article 里的引用推文
+ */
+export function collectReplyTweets(mainId?: string): TweetEntry[] {
+  const out: TweetEntry[] = [];
+  const seen = new Set<string>();
+
+  const articles = [...document.querySelectorAll<HTMLElement>(X_SELECTORS.tweetArticle)];
+  articles.forEach((el) => {
+    // 引用推文是嵌套在另一个 article 里的，不算独立条目
+    if (el.parentElement?.closest(X_SELECTORS.tweetArticle)) return;
+
+    const tweet = extractArticle(el);
+    if (!tweet.text) return;
+    if (mainId && tweet.id === mainId) return;
+
+    const key = tweet.id ?? signatureOf(tweet.text);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ tweet, el });
+  });
+  return out;
+}
+
+function signatureOf(text: string): string {
+  return text.slice(0, 60);
+}
+
 export class TweetDetector {
   getCurrentTweet(): TweetContext | null {
     const match = location.pathname.match(STATUS_URL_RE);

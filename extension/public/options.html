@@ -303,6 +303,10 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></svg>
       自动生成
     </button>
+    <button class="nav-item" data-pane="cleaner">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6l7-3Z"/></svg>
+      评论清理
+    </button>
     <button class="nav-item" data-pane="about">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
       插件信息
@@ -389,6 +393,119 @@
             <span class="slider"></span>
           </label>
         </div>
+      </div>
+    </section>
+
+    <!-- 评论清理（Feed Cleaner） -->
+    <section class="pane" id="pane-cleaner">
+      <h2>评论清理</h2>
+      <p class="pane-desc">在帖子详情页自动隐藏机器人 / 垃圾回复。只做本地隐藏，<strong>不会封禁、举报或静音任何账号</strong>；被隐藏的内容会折叠成一条占位条，随时可以展开。</p>
+
+      <div class="group">
+        <div class="row">
+          <div>
+            <p class="row-label">启用评论清理</p>
+            <p class="row-desc">进入帖子详情页、评论区向下加载时自动扫描；面板底部的「清理」按钮可手动重扫一遍。</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="cleaner-enabled" />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">识别类别</div>
+        <div class="row">
+          <div>
+            <p class="row-label">重复刷屏</p>
+            <p class="row-desc">多条内容文本高度雷同，典型是模板化的机器人评论。</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="cleaner-repeat" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="row">
+          <div>
+            <p class="row-label">机器人账号</p>
+            <p class="row-desc">账号名是长串数字，且内容短、emoji 多、模板化。</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="cleaner-bot" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="row">
+          <div>
+            <p class="row-label">色情引流</p>
+            <p class="row-desc">命中色情引流关键词。</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="cleaner-adult" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="row">
+          <div>
+            <p class="row-label">赌博引流</p>
+            <p class="row-desc">命中博彩 / 投注 / 赌场类关键词。</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="cleaner-gamble" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="row">
+          <div>
+            <p class="row-label">诈骗引流</p>
+            <p class="row-desc">命中「稳赚 / 带单 / 加微信」这类诈骗话术。</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="cleaner-scam" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="row">
+          <div>
+            <p class="row-label">广告推广</p>
+            <p class="row-desc">命中促销 / 返利 / 代理类关键词。误杀率相对高，可单独关掉。</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="cleaner-ad" />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">白名单</div>
+        <div class="row">
+          <div>
+            <p class="row-label">豁免我关注的账号</p>
+            <p class="row-desc">你主动关注的人不参与判定，避免误杀。</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="cleaner-whitelist-following" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="row">
+          <div>
+            <p class="row-label">豁免认证账号</p>
+            <p class="row-desc">蓝标 / 金标 / 灰标账号不参与判定。</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="cleaner-whitelist-verified" />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">统计</div>
+        <div class="kv"><span>累计隐藏</span><span><strong id="cleaner-count">0</strong> 条</span></div>
+        <div class="kv"><span>已记住「永远隐藏」的文本</span><span><strong id="cleaner-sig">0</strong> 条</span></div>
       </div>
     </section>
 

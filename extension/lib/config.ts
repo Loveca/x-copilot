@@ -1,4 +1,4 @@
-import type { LLMConfig, StyleConfig, UIConfig } from '@/types';
+import type { CleanerConfig, LLMConfig, StyleConfig, UIConfig } from '@/types';
 
 /**
  * 默认 LLM 配置：DeepSeek（OpenAI 兼容协议）。
@@ -92,11 +92,29 @@ export const DEFAULT_POST_STYLES: StyleConfig[] = [
   },
 ];
 
+/** Feed Cleaner 默认配置（评论清理优先，首页时间线清理放后阶段） */
+export const DEFAULT_CLEANER_CONFIG: CleanerConfig = {
+  enabled: true,
+  categories: {
+    repeat: true,
+    bot: true,
+    adult: true,
+    gamble: true,
+    scam: true,
+    ad: true,
+  },
+  whitelistFollowing: true,
+  whitelistVerified: true,
+  alwaysHideSignatures: [],
+  hiddenCount: 0,
+};
+
 /** 交互类配置默认值 */
 export const DEFAULT_UI_CONFIG: UIConfig = {
   autoGenerate: true,
   styles: DEFAULT_STYLES,
   postStyles: DEFAULT_POST_STYLES,
+  cleaner: DEFAULT_CLEANER_CONFIG,
   // 诊断信息默认不展示给用户（设置页「开发者选项」可开）
   debugTiming: false,
 };
@@ -120,7 +138,22 @@ export function normalizeUIConfig(stored?: Partial<UIConfig> | null): UIConfig {
     autoGenerate: stored?.autoGenerate !== false,
     styles: normalizeStyles(stored?.styles, DEFAULT_STYLES),
     postStyles: normalizeStyles(stored?.postStyles, DEFAULT_POST_STYLES),
+    cleaner: normalizeCleaner(stored?.cleaner),
     debugTiming: stored?.debugTiming === true,
+  };
+}
+
+/** 归一化清理配置：缺失字段用默认值补，已存的类别开关尊重用户设置 */
+function normalizeCleaner(stored?: Partial<CleanerConfig> | null): CleanerConfig {
+  return {
+    enabled: stored?.enabled !== false,
+    categories: { ...DEFAULT_CLEANER_CONFIG.categories, ...(stored?.categories ?? {}) },
+    whitelistFollowing: stored?.whitelistFollowing !== false,
+    whitelistVerified: stored?.whitelistVerified !== false,
+    alwaysHideSignatures: Array.isArray(stored?.alwaysHideSignatures)
+      ? stored!.alwaysHideSignatures.filter((v): v is string => typeof v === 'string').slice(0, 200)
+      : [],
+    hiddenCount: typeof stored?.hiddenCount === 'number' ? stored!.hiddenCount : 0,
   };
 }
 

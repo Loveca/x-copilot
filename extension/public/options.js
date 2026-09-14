@@ -96,8 +96,25 @@
     { key: 'casual', label: '水贴', desc: '轻松互动式的一句话，几乎没有信息量但自然', enabled: true, count: 1 },
   ];
 
+  // 默认清理配置，需与 extension/lib/config.ts 的 DEFAULT_CLEANER_CONFIG 保持一致
+  var DEFAULT_CLEANER = {
+    enabled: true,
+    categories: { repeat: true, bot: true, adult: true, gamble: true, scam: true, ad: true },
+    whitelistFollowing: true,
+    whitelistVerified: true,
+    alwaysHideSignatures: [],
+    hiddenCount: 0,
+  };
+
+  var CLEANER_CATEGORIES = ['repeat', 'bot', 'adult', 'gamble', 'scam', 'ad'];
+
   // 页内状态（任何改动都整份写回 storage，避免互相覆盖）
-  var uiState = { autoGenerate: true, styles: clone(DEFAULT_STYLES), debugTiming: false };
+  var uiState = {
+    autoGenerate: true,
+    styles: clone(DEFAULT_STYLES),
+    cleaner: clone(DEFAULT_CLEANER),
+    debugTiming: false,
+  };
 
   function clone(v) { return JSON.parse(JSON.stringify(v)); }
 
@@ -520,6 +537,47 @@
     saveUI();
   });
 
+  // ---------- 评论清理（Feed Cleaner） ----------
+  function bindCleanerToggle(id, read, write) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.checked = read();
+    el.addEventListener('change', function () {
+      write(el.checked);
+      saveUI();
+    });
+  }
+
+  function renderCleaner() {
+    bindCleanerToggle(
+      'cleaner-enabled',
+      function () { return uiState.cleaner.enabled; },
+      function (v) { uiState.cleaner.enabled = v; }
+    );
+    CLEANER_CATEGORIES.forEach(function (key) {
+      bindCleanerToggle(
+        'cleaner-' + key,
+        function () { return uiState.cleaner.categories[key] !== false; },
+        function (v) { uiState.cleaner.categories[key] = v; }
+      );
+    });
+    bindCleanerToggle(
+      'cleaner-whitelist-following',
+      function () { return uiState.cleaner.whitelistFollowing !== false; },
+      function (v) { uiState.cleaner.whitelistFollowing = v; }
+    );
+    bindCleanerToggle(
+      'cleaner-whitelist-verified',
+      function () { return uiState.cleaner.whitelistVerified !== false; },
+      function (v) { uiState.cleaner.whitelistVerified = v; }
+    );
+
+    var count = document.getElementById('cleaner-count');
+    var sig = document.getElementById('cleaner-sig');
+    if (count) count.textContent = String(uiState.cleaner.hiddenCount || 0);
+    if (sig) sig.textContent = String((uiState.cleaner.alwaysHideSignatures || []).length);
+  }
+
   // ---------- 开发者选项 ----------
   var $debugTiming = document.getElementById('debug-timing');
 
@@ -534,8 +592,12 @@
     uiState.autoGenerate = cfg.autoGenerate !== false;
     uiState.styles = normalizeStyles(cfg.styles);
     uiState.debugTiming = cfg.debugTiming === true;
+    uiState.cleaner = Object.assign({}, DEFAULT_CLEANER, cfg.cleaner || {}, {
+      categories: Object.assign({}, DEFAULT_CLEANER.categories, (cfg.cleaner || {}).categories || {}),
+    });
     $autoGenerate.checked = uiState.autoGenerate;
     $debugTiming.checked = uiState.debugTiming;
     renderStyles();
+    renderCleaner();
   });
 })();

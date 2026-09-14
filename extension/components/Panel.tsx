@@ -10,6 +10,8 @@ interface Props {
   onModeChange: (mode: CopilotMode) => void;
   /** 当前页面已识别到具体推文（详情页 / 回复弹窗）时，发帖不可用 */
   postDisabled?: boolean;
+  /** Feed Cleaner：手动重扫评论区 */
+  onClean?: () => void;
   children: ReactNode;
 }
 
@@ -20,6 +22,7 @@ export function Panel({
   mode,
   onModeChange,
   postDisabled = false,
+  onClean,
   children,
 }: Props) {
   if (!open) return null;
@@ -60,6 +63,18 @@ export function Panel({
       </div>
       <div className="xc-body">{children}</div>
       <div className="xc-footer">
+        {onClean && (
+          <button
+            className="xc-settings-btn"
+            onClick={onClean}
+            title="重新扫描当前页面的评论区，隐藏机器人 / 垃圾回复"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6l7-3Z" />
+            </svg>
+            <span>清理</span>
+          </button>
+        )}
         <button
           className="xc-settings-btn"
           onClick={onOpenSettings}
