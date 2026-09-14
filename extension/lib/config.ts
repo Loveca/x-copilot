@@ -53,10 +53,50 @@ export const DEFAULT_STYLES: StyleConfig[] = [
   },
 ];
 
+/** 默认发帖风格（Phase 2 Post Copilot；顺序即候选顺序） */
+export const DEFAULT_POST_STYLES: StyleConfig[] = [
+  {
+    key: 'post-opinion',
+    label: '观点型',
+    desc: '明确输出一个判断或立场，有主张、不含糊',
+    enabled: true,
+    count: 1,
+  },
+  {
+    key: 'post-counter',
+    label: '反向型',
+    desc: '提出与主流不同但站得住的看法，礼貌不抬杠',
+    enabled: true,
+    count: 1,
+  },
+  {
+    key: 'post-trend',
+    label: '热点型',
+    desc: '贴着大家正在聊的话题说，有现场感',
+    enabled: true,
+    count: 1,
+  },
+  {
+    key: 'post-short',
+    label: '短帖',
+    desc: '一句话，极简，不展开',
+    enabled: true,
+    count: 1,
+  },
+  {
+    key: 'post-thread',
+    label: 'Thread 开头',
+    desc: '抛出悬念的一句话开头，暗示下面还有内容',
+    enabled: true,
+    count: 1,
+  },
+];
+
 /** 交互类配置默认值 */
 export const DEFAULT_UI_CONFIG: UIConfig = {
   autoGenerate: true,
   styles: DEFAULT_STYLES,
+  postStyles: DEFAULT_POST_STYLES,
   // 诊断信息默认不展示给用户（设置页「开发者选项」可开）
   debugTiming: false,
 };
@@ -78,14 +118,18 @@ export const MAX_TOTAL_REPLIES = 10;
 export function normalizeUIConfig(stored?: Partial<UIConfig> | null): UIConfig {
   return {
     autoGenerate: stored?.autoGenerate !== false,
-    styles: normalizeStyles(stored?.styles),
+    styles: normalizeStyles(stored?.styles, DEFAULT_STYLES),
+    postStyles: normalizeStyles(stored?.postStyles, DEFAULT_POST_STYLES),
     debugTiming: stored?.debugTiming === true,
   };
 }
 
-function normalizeStyles(stored?: StyleConfig[] | null): StyleConfig[] {
+function normalizeStyles(
+  stored?: StyleConfig[] | null,
+  defaults: StyleConfig[] = DEFAULT_STYLES
+): StyleConfig[] {
   const savedList = Array.isArray(stored) ? stored : [];
-  const defaultsByKey = new Map(DEFAULT_STYLES.map((d) => [d.key, d]));
+  const defaultsByKey = new Map(defaults.map((d) => [d.key, d]));
   const seen = new Set<string>();
   const result: StyleConfig[] = [];
 
@@ -104,7 +148,7 @@ function normalizeStyles(stored?: StyleConfig[] | null): StyleConfig[] {
   });
 
   // 2) 默认清单里存在但存储中没有的风格（新增功能）追加在末尾
-  DEFAULT_STYLES.forEach((def) => {
+  defaults.forEach((def) => {
     if (!seen.has(def.key)) result.push({ ...def });
   });
 
@@ -119,6 +163,11 @@ function clampCount(n: unknown): number {
 /** 实际参与生成的风格（启用且有数量） */
 export function activeStyles(config: UIConfig): StyleConfig[] {
   return config.styles.filter((s) => s.enabled && s.count > 0);
+}
+
+/** 实际参与生成的发帖风格（Phase 2） */
+export function activePostStyles(config: UIConfig): StyleConfig[] {
+  return config.postStyles.filter((s) => s.enabled && s.count > 0);
 }
 
 /** 预期的候选序列（按风格顺序展开，用于校验/兜底模型返回） */

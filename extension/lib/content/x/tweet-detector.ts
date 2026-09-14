@@ -96,6 +96,28 @@ function extractArticle(article: Element, id?: string, handleHint?: string): Twe
   return context;
 }
 
+/**
+ * 时间线语境：当前页面可见帖子中互动量最高的若干条。
+ * Phase 2 发帖模式用它给「热点型 / 反向型」提供"现在大家在聊什么"的背景。
+ */
+export function collectTimelineTweets(limit = 5): TweetContext[] {
+  const articles = [...document.querySelectorAll<HTMLElement>(X_SELECTORS.tweetArticle)];
+  const seen = new Set<string>();
+  const list: TweetContext[] = [];
+
+  articles.forEach((a) => {
+    const t = extractArticle(a);
+    if (!t.text) return;
+    const key = t.id ?? t.text.slice(0, 60);
+    if (seen.has(key)) return;
+    seen.add(key);
+    list.push(t);
+  });
+
+  const score = (t: TweetContext) => (t.likeCount ?? 0) + (t.replyCount ?? 0) + (t.repostCount ?? 0);
+  return list.sort((a, b) => score(b) - score(a)).slice(0, limit);
+}
+
 /** 调试日志：DevTools Console 里过滤 [X Copilot] 即可查看 */
 const log = (...args: unknown[]) => console.debug('[X Copilot]', ...args);
 

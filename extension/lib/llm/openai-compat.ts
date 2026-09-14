@@ -1,6 +1,11 @@
-import { DEFAULT_STYLES, MAX_TOTAL_REPLIES, expectedStyleSequence } from '@/lib/config';
+import {
+  DEFAULT_POST_STYLES,
+  DEFAULT_STYLES,
+  MAX_TOTAL_REPLIES,
+  expectedStyleSequence,
+} from '@/lib/config';
 import type {
-  GenerateReplyOptions,
+  GenerateOptions,
   LLMConfig,
   ReplyCandidate,
   StyleConfig,
@@ -71,6 +76,58 @@ function buildPrompt(
       'is about. Do not describe or caption the image(s) unless that is clearly the point of the',
       'reply, and never state details you cannot actually see in them.'
     );
+  }
+  return parts.join('\n');
+}
+
+/**
+ * 发帖模式（Phase 2）的 Prompt。
+ * 与回复不同：没有"必须贴合原推"的约束，要自己立论；
+ * 但有更多输入源——用户主题、当前看的帖子（灵感）、时间线上正在热的内容。
+ */
+function buildPostPrompt(
+  styles: StyleConfig[],
+  intent?: string,
+  contextTweets: TweetContext[] = [],
+  inspiration?: TweetContext | null
+): string {
+  const total = styles.reduce((sum, s) => sum + s.count, 0);
+  const styleLines = styles
+    .map((s, i) => `${i + 1}. ${s.label} — ${s.count} 条：${s.desc}`)
+    .join('\n');
+
+  const parts = [
+    'Help a real person write their own X post. This is NOT a reply to anybody.',
+    '',
+    'Rules:',
+    '1. Sound like a person thinking out loud, not a brand announcement or press release.',
+    '2. No generic AI phrasing, no filler encouragement, no hashtag spam.',
+    '3. Under 280 characters each. Same language as the topic the user gave.',
+    '4. Never invent facts, numbers, or personal experiences the user did not provide.',
+    `5. Styles, in this exact order and count:\n${styleLines}`,
+    `6. Total lines = ${total}. Lines of the same style must differ in angle.`,
+    '7. Output ONLY one JSON object per line, no array, no code fences, no extra text:',
+    '   {"style":"观点型","text":"..."}',
+  ];
+
+  if (intent) {
+    parts.push('', `The user's own idea (highest priority — every line must grow out of it): "${intent}"`);
+  }
+  if (inspiration?.text) {
+    parts.push(
+      '',
+      'A post the user is currently looking at. Use it only as inspiration — do NOT reply to it,',
+      `write an independent post of their own: ${inspiration.authorHandle ?? 'someone'}: ${inspiration.text}`
+    );
+  }
+  if (contextTweets.length > 0) {
+    parts.push(
+      '',
+      'What is getting engagement on their timeline right now (context for 热点型 / 反向型 only; never copy it):'
+    );
+    contextTweets.forEach((t) => {
+      parts.push(`- ${t.authorHandle ?? t.author ?? 'someone'}: ${t.text.slice(0, 180)}`);
+    });
   }
   return parts.join('\n');
 }
@@ -245,21 +302,27 @@ function toCandidates(
   }));
 }
 
-function resolveStyles(options?: GenerateReplyOptions): {
+function resolveGeneration(options?: GenerateOptions): {
   styles: StyleConfig[];
   expected: string[];
   intent?: string;
+  mode: 'reply' | 'post';
+  contextTweets: TweetContext[];
 } {
-  const styles = (options?.styles?.length ? options.styles : DEFAULT_STYLES).filter(
+  const mode: 'reply' | 'post' = options?.mode === 'post' ? 'post' : 'reply';
+  const fallback = mode === 'post' ? DEFAULT_POST_STYLES : DEFAULT_STYLES;
+  const styles = (options?.styles?.length ? options.styles : fallback).filter(
     (s) => s.enabled && s.count > 0
   );
   if (styles.length === 0) {
     throw new Error('NO_STYLES_ENABLED');
   }
   return {
+    mode,
     styles,
     expected: expectedStyleSequence(styles),
     intent: options?.intent?.trim().slice(0, 300) || undefined,
+    contextTweets: options?.contextTweets ?? [],
   };
 }
 
@@ -286,6 +349,10 @@ function detectProvider(baseUrl: string): ProviderKind {
 export class OpenAICompatProvider implements LLMProvider {
   /** 本次请求实际发出的图片张数（降级重试后可能少于传入） */
   private usedImageCount = 0;
+  /** 生成模式：reply = 回复；post = 写自己的帖子（Phase 2） */
+  private mode: 'reply' | 'post' = 'reply';
+  /** 帖子模式的时间线语境 */
+  private contextTweets: TweetContext[] = [];
 
   constructor(private config: LLMConfig) {}
 
@@ -301,14 +368,17 @@ export class OpenAICompatProvider implements LLMProvider {
   }
 
   private body(
-    context: TweetContext,
+    context: TweetContext | null,
     styles: StyleConfig[],
     intent: string | undefined,
     stream: boolean,
     includeProviderParams = true,
     images: string[] = []
   ): string {
-    const prompt = buildPrompt(context, styles, intent, images.length > 0);
+    const prompt =
+      this.mode === 'post'
+        ? buildPostPrompt(styles, intent, this.contextTweets, context)
+        : buildPrompt(context as TweetContext, styles, intent, images.length > 0);
     // 多模态消息：文字 + image_url 内容块（图片只能出现在 user 消息里，这是各家的共同约束）
     const content =
       images.length > 0
@@ -361,7 +431,7 @@ export class OpenAICompatProvider implements LLMProvider {
    * 学到结论后记进 visionUnsupported / providerParamsUnsupported，后续不再重试。
    */
   private async requestCompletion(
-    context: TweetContext,
+    context: TweetContext | null,
     styles: StyleConfig[],
     intent: string | undefined,
     stream: boolean,
@@ -404,11 +474,13 @@ export class OpenAICompatProvider implements LLMProvider {
 
   /** 流式生成：对象一闭合就回调，不等整段结束 */
   async generateRepliesStream(
-    context: TweetContext,
-    options: GenerateReplyOptions | undefined,
+    context: TweetContext | null,
+    options: GenerateOptions | undefined,
     handlers: LLMStreamHandlers
   ): Promise<ReplyCandidate[]> {
-    const { styles, expected, intent } = resolveStyles(options);
+    const { styles, expected, intent, mode, contextTweets } = resolveGeneration(options);
+    this.mode = mode;
+    this.contextTweets = contextTweets;
     const imageDataUrls = (options?.imageDataUrls ?? []).slice(0, MAX_VISION_IMAGES);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -585,10 +657,12 @@ export class OpenAICompatProvider implements LLMProvider {
 
   /** 非流式生成（保留作为兜底路径） */
   async generateReplies(
-    context: TweetContext,
-    options?: GenerateReplyOptions
+    context: TweetContext | null,
+    options?: GenerateOptions
   ): Promise<ReplyCandidate[]> {
-    const { styles, expected, intent } = resolveStyles(options);
+    const { styles, expected, intent, mode, contextTweets } = resolveGeneration(options);
+    this.mode = mode;
+    this.contextTweets = contextTweets;
     const imageDataUrls = (options?.imageDataUrls ?? []).slice(0, MAX_VISION_IMAGES);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);

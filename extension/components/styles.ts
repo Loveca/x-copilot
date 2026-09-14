@@ -64,6 +64,29 @@ export const CSS_TEXT = `
   flex-shrink: 0;
 }
 .xc-title { font-size: 15px; font-weight: 700; flex: 1; color: #0f1419; }
+/* 模式切换：回复 / 发帖 */
+.xc-mode {
+  display: flex;
+  border: 1px solid #cfd9de;
+  border-radius: 9999px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.xc-mode-btn {
+  border: none;
+  background: #ffffff;
+  color: #536471;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.xc-mode-btn + .xc-mode-btn { border-left: 1px solid #cfd9de; }
+.xc-mode-btn:hover { background: #f7f9f9; color: #0f1419; }
+.xc-mode-btn.active { background: #0f1419; color: #ffffff; }
+
 .xc-close {
   border: none; background: transparent; cursor: pointer;
   font-size: 16px; color: #536471; padding: 4px 8px; border-radius: 9999px;
@@ -111,6 +134,12 @@ export const CSS_TEXT = `
   border-radius: 12px;
   padding: 10px 12px;
   margin-bottom: 12px;
+}
+.xc-tweet-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #536471;
+  margin-bottom: 5px;
 }
 .xc-tweet-author { font-size: 12px; font-weight: 700; color: #0f1419; margin-bottom: 4px; }
 .xc-tweet-text { font-size: 13px; line-height: 1.5; color: #536471; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }

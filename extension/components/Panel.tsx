@@ -1,19 +1,44 @@
 import type { ReactNode } from 'react';
 
+export type CopilotMode = 'reply' | 'post';
+
 interface Props {
   open: boolean;
   onClose: () => void;
   onOpenSettings: () => void;
+  mode: CopilotMode;
+  onModeChange: (mode: CopilotMode) => void;
   children: ReactNode;
 }
 
-export function Panel({ open, onClose, onOpenSettings, children }: Props) {
+export function Panel({ open, onClose, onOpenSettings, mode, onModeChange, children }: Props) {
   if (!open) return null;
   return (
     <div className="xc-panel">
       <div className="xc-header">
         <div className="xc-logo">✦</div>
         <div className="xc-title">X Copilot</div>
+        <div className="xc-mode" role="tablist" aria-label="模式">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'reply'}
+            className={'xc-mode-btn' + (mode === 'reply' ? ' active' : '')}
+            onClick={() => onModeChange('reply')}
+          >
+            回复
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'post'}
+            className={'xc-mode-btn' + (mode === 'post' ? ' active' : '')}
+            onClick={() => onModeChange('post')}
+            title="写自己的帖子，不是回复"
+          >
+            发帖
+          </button>
+        </div>
         <button className="xc-close" onClick={onClose} title="关闭">
           ✕
         </button>

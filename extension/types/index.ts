@@ -30,13 +30,17 @@ export interface StyleConfig {
   count: number;
 }
 
-export interface GenerateReplyOptions {
+export interface GenerateOptions {
   count?: number;
   styles?: StyleConfig[];
+  /** 生成模式：reply = 回复当前推文（默认）；post = 写自己的帖子 */
+  mode?: 'reply' | 'post';
   /** 用户想表达的核心观点（可选）。给了就让所有候选围绕它展开 */
   intent?: string;
   /** 帖子图片，已由 background 取回并编码为 data URL（取不到时为空数组） */
   imageDataUrls?: string[];
+  /** 时间线语境：当前页面互动较高的若干条帖子（发帖模式的热点型用） */
+  contextTweets?: TweetContext[];
 }
 
 export interface LLMConfig {
@@ -59,6 +63,8 @@ export interface UIConfig {
   autoGenerate: boolean;
   /** 回复风格配置（顺序、启用、数量） */
   styles: StyleConfig[];
+  /** 发帖风格配置（Phase 2 Post Copilot，与回复风格分开） */
+  postStyles: StyleConfig[];
   /** 面板底部是否显示耗时/字数等诊断信息（开发者用，默认关） */
   debugTiming: boolean;
 }

@@ -6,16 +6,17 @@ import {
   GENERATE_PORT,
   LLM_CONFIG_STORAGE_KEY,
   UI_CONFIG_STORAGE_KEY,
+  activePostStyles,
   activeStyles,
   normalizeUIConfig,
 } from '@/lib/config';
-import type { GenerateReplyOptions, LLMConfig, TweetContext, UIConfig } from '@/types';
+import type { GenerateOptions, LLMConfig, TweetContext, UIConfig } from '@/types';
 import type { LLMStreamTiming } from '@/lib/llm/provider';
 import { fetchImagesAsDataUrls } from '@/lib/llm/vision';
 
 async function readOptions(
-  incoming?: GenerateReplyOptions
-): Promise<{ config: LLMConfig; options: GenerateReplyOptions }> {
+  incoming?: GenerateOptions
+): Promise<{ config: LLMConfig; options: GenerateOptions }> {
   const stored = await browser.storage.local.get([LLM_CONFIG_STORAGE_KEY, UI_CONFIG_STORAGE_KEY]);
   const config: LLMConfig = {
     ...DEFAULT_LLM_CONFIG,
@@ -24,10 +25,12 @@ async function readOptions(
   const uiConfig = normalizeUIConfig(
     stored[UI_CONFIG_STORAGE_KEY] as Partial<UIConfig> | undefined
   );
+  // 风格按模式取：发帖用发帖风格，回复用回复风格（两套独立配置）
+  const styles =
+    incoming?.mode === 'post' ? activePostStyles(uiConfig) : activeStyles(uiConfig);
   return {
     config,
-    // 回复风格由设置页配置（顺序 / 启用 / 每条数量）
-    options: { ...(incoming ?? {}), styles: activeStyles(uiConfig) },
+    options: { ...(incoming ?? {}), styles },
   };
 }
 
@@ -52,7 +55,7 @@ export default defineBackground(() => {
     if (port.name !== GENERATE_PORT) return;
 
     port.onMessage.addListener(async (message: unknown) => {
-      const msg = message as { tweet?: unknown; options?: GenerateReplyOptions };
+      const msg = message as { tweet?: unknown; options?: GenerateOptions };
       const send = (payload: unknown) => {
         try {
           port.postMessage(payload);
@@ -90,7 +93,7 @@ export default defineBackground(() => {
 
   // 其余消息（打开设置页、非流式兜底）
   browser.runtime.onMessage.addListener(async (message: unknown) => {
-    const msg = message as { type?: string; tweet?: unknown; options?: GenerateReplyOptions };
+    const msg = message as { type?: string; tweet?: unknown; options?: GenerateOptions };
 
     if (msg?.type === 'OPEN_OPTIONS') {
       await browser.runtime.openOptionsPage();

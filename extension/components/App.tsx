@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
-import { TweetDetector } from '@/lib/content/x/tweet-detector';
+import { TweetDetector, collectTimelineTweets } from '@/lib/content/x/tweet-detector';
 import { findReplyComposer, findPostComposer, isPostButtonEnabled } from '@/lib/content/x/composer-detector';
 import { fillReplyComposer, fillComposer } from '@/lib/content/x/fill';
 import {
@@ -12,14 +12,14 @@ import {
 import type { ReplyCandidate, TweetContext, UIConfig } from '@/types';
 import type { LLMStreamProgress, LLMStreamTiming } from '@/lib/llm/provider';
 import { FloatingButton } from './FloatingButton';
-import { Panel } from './Panel';
+import { Panel, type CopilotMode } from './Panel';
 import { ReplyCard } from './ReplyCard';
 
 function friendlyError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
   if (msg.includes('BAD_API_KEY')) return 'API Key 无效或已过期，请点击左下角「设置」检查配置。';
   if (msg.includes('NO_API_KEY')) return '尚未配置 API Key，请点击左下角「设置」填入。';
-  if (msg.includes('NO_STYLES_ENABLED')) return '没有启用任何回复风格，请在设置 →「回复风格」中至少启用一种。';
+  if (msg.includes('NO_STYLES_ENABLED')) return '没有启用任何风格，请在设置里至少启用一种。';
   if (msg.includes('NETWORK_ERROR') || msg.includes('Failed to fetch'))
     return '无法连接到模型服务，请检查网络或设置里的 Base URL。';
   if (msg.includes('LLM_HTTP_429')) return '请求过于频繁或超出免费额度，请稍后再试。';
@@ -58,6 +58,7 @@ function groupByStyle(replies: ReplyCandidate[]): Array<{ style: string; items: 
 
 export function App() {
   const [tweet, setTweet] = useState<TweetContext | null>(null);
+  const [mode, setMode] = useState<CopilotMode>('reply');
   const [open, setOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [replies, setReplies] = useState<ReplyCandidate[]>([]);
@@ -80,8 +81,9 @@ export function App() {
   const autoGenerateRef = useRef(DEFAULT_UI_CONFIG.autoGenerate);
   const uiConfigRef = useRef<UIConfig>(normalizeUIConfig());
 
-  // 缓存键：同一 Tweet 下，「带意图」与「不带意图」的结果要分开存
-  const cacheKey = (id?: string, intentText = '') => `${id ?? 'no-id'}::${intentText.trim()}`;
+  // 缓存键：模式 / Tweet / 意图 三者都要区分（回复结果与发帖草稿不能混）
+  const cacheKey = (m: CopilotMode, id?: string, intentText = '') =>
+    `${m}::${id ?? 'no-id'}::${intentText.trim()}`;
 
   useEffect(() => {
     const apply = (cfg?: Partial<UIConfig>) => {
@@ -107,11 +109,12 @@ export function App() {
     return () => browser.storage.onChanged.removeListener(onChanged);
   }, []);
 
-  // 生成回复候选（流式：候选一到就先渲染；手动与自动触发共用）
+  // 生成候选（流式：候选一到就先渲染；手动与自动触发共用；回复 / 发帖两种模式）
   const runGenerate = useCallback(
-    async (target: TweetContext, auto: boolean, intentText = '') => {
+    async (target: TweetContext | null, auto: boolean, intentText = '') => {
       const cleanIntent = intentText.trim();
-      const key = cacheKey(target.id, cleanIntent);
+      // 缓存键带上模式：同一条推文的回复结果与发帖草稿不能混
+      const key = cacheKey(mode, target?.id, cleanIntent);
 
       // 缓存只用于「自动弹出时避免重复请求」。
       // 手动点「生成回复 / 重新生成 / 按这个想法生成」一律真发请求 ——
@@ -131,7 +134,7 @@ export function App() {
       setProgress(undefined);
       setGenerating(true);
       setError(undefined);
-      if (auto) setToast('检测到新 Tweet，正在自动生成回复……');
+      if (auto) setToast(mode === 'post' ? '正在为你起草帖子……' : '检测到新 Tweet，正在自动生成回复……');
 
       const port = browser.runtime.connect({ name: GENERATE_PORT });
       activePortRef.current = port;
@@ -160,7 +163,7 @@ export function App() {
           setReplies(msg.replies);
           cacheRef.current.set(key, msg.replies);
           if (msg.timing) setTiming(msg.timing);
-          if (auto) setToast('回复已生成');
+          if (auto) setToast(mode === 'post' ? '帖子草稿已生成' : '回复已生成');
           setGenerating(false);
           port.disconnect();
         } else if (msg.type === 'error') {
@@ -180,9 +183,15 @@ export function App() {
         setError('生成中断，请重试。');
       });
 
-      port.postMessage({ tweet: target, options: { intent: cleanIntent || undefined } });
+      const options: Record<string, unknown> = {
+        mode,
+        intent: cleanIntent || undefined,
+      };
+      // 发帖模式额外带上时间线语境（当前页面互动最高的几条）
+      if (mode === 'post') options.contextTweets = collectTimelineTweets(5);
+      port.postMessage({ tweet: target, options });
     },
-    []
+    [mode]
   );
 
   // 取消在途生成（关闭 Modal / 离开 Tweet 时调用）
@@ -209,9 +218,12 @@ export function App() {
         cancelGeneration();
         setReplies([]);
         setOpen(false);
+        // 时间线上没有具体推文时，面板默认进发帖模式
+        setMode('post');
         return;
       }
-      const cached = cacheRef.current.get(cacheKey(t.id, ''));
+      setMode('reply');
+      const cached = cacheRef.current.get(cacheKey('reply', t.id, ''));
       setReplies(cached ?? []);
       setOpen(true);
       // 自动生成关闭时只弹出面板，等用户手动点「生成回复」
@@ -268,6 +280,20 @@ export function App() {
     }, 300);
   }, []);
 
+  /** 切换模式：清掉上一模式的结果，避免回复候选与发帖草稿混在一起 */
+  const changeMode = useCallback(
+    (next: CopilotMode) => {
+      if (next === mode) return;
+      setMode(next);
+      setReplies([]);
+      setFilledId(null);
+      setError(undefined);
+      setTiming(undefined);
+      setProgress(undefined);
+    },
+    [mode]
+  );
+
   const openSettings = useCallback(async () => {
     try {
       await browser.runtime.sendMessage({ type: 'OPEN_OPTIONS' });
@@ -276,28 +302,46 @@ export function App() {
     }
   }, []);
 
-  const fill = useCallback(async (reply: ReplyCandidate) => {
-    const composer = findReplyComposer();
-    if (!composer) {
-      setToast('未找到回复输入框，请先点击「回复」。');
-      return;
-    }
-    const ok = fillReplyComposer(composer, reply.text);
-    if (ok) {
-      setToast('已填入，请检查后自行发送。');
-      // 替换语义：只标记最新填入的一条，上一条自动恢复
-      setFilledId(reply.id);
-    } else {
-      setToast('填入失败，请手动复制粘贴。');
-    }
-  }, []);
+  const fill = useCallback(
+    async (candidate: ReplyCandidate) => {
+      // 发帖模式填主发帖框，回复模式填回复框
+      const composer = mode === 'post' ? findPostComposer() : findReplyComposer();
+      if (!composer) {
+        setToast(
+          mode === 'post'
+            ? '未找到发帖框，请先点开首页的发帖框。'
+            : '未找到回复输入框，请先点击「回复」。'
+        );
+        return;
+      }
+      const ok =
+        mode === 'post'
+          ? fillComposer(composer, candidate.text)
+          : fillReplyComposer(composer, candidate.text);
+      if (ok) {
+        setToast('已填入，请检查后自行发送。');
+        // 替换语义：只标记最新填入的一条，上一条自动恢复
+        setFilledId(candidate.id);
+      } else {
+        setToast('填入失败，请手动复制粘贴。');
+      }
+    },
+    [mode]
+  );
 
   return (
     <>
       <FloatingButton open={open} onToggle={() => setOpen((v) => !v)} />
-      <Panel open={open} onClose={() => setOpen(false)} onOpenSettings={openSettings}>
+      <Panel
+        open={open}
+        onClose={() => setOpen(false)}
+        onOpenSettings={openSettings}
+        mode={mode}
+        onModeChange={changeMode}
+      >
         {tweet ? (
           <div className="xc-tweet-card">
+            {mode === 'post' && <div className="xc-tweet-tag">灵感来源（不会回复它）</div>}
             <div className="xc-tweet-author">
               {tweet.author ?? '未知用户'} {tweet.authorHandle ? `· ${tweet.authorHandle}` : ''}
             </div>
@@ -305,24 +349,28 @@ export function App() {
               {tweet.text || '（这条帖子没有文字，只有图片）'}
             </div>
           </div>
-        ) : (
+        ) : mode === 'reply' ? (
           <div className="xc-empty">
             暂时没有识别到当前 Tweet。
             <br />
-            请打开一条 Tweet 详情页。
+            打开一条 Tweet 详情页，或切到「发帖」写自己的帖子。
           </div>
-        )}
+        ) : null}
 
-        {tweet && (
+        {(tweet || mode === 'post') && (
           <input
             className="xc-intent"
             type="text"
             value={intent}
             maxLength={200}
-            placeholder="想说什么？（可选，例如：他这套逻辑忽略了汇率）"
+            placeholder={
+              mode === 'post'
+                ? '想发点什么？（可选，例如：AI 工具真正的成本在落地）'
+                : '想说什么？（可选，例如：他这套逻辑忽略了汇率）'
+            }
             onChange={(e) => setIntent(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !generating && tweet) {
+              if (e.key === 'Enter' && !generating && (tweet || mode === 'post')) {
                 void runGenerate(tweet, false, intent);
               }
             }}
@@ -331,8 +379,8 @@ export function App() {
 
         <button
           className="xc-generate-btn"
-          onClick={() => tweet && runGenerate(tweet, false, intent)}
-          disabled={generating || !tweet}
+          onClick={() => runGenerate(tweet, false, intent)}
+          disabled={generating || (mode === 'reply' && !tweet)}
         >
           {generating ? (
             <>
@@ -343,6 +391,8 @@ export function App() {
             '按这个想法生成'
           ) : replies.length > 0 ? (
             '重新生成'
+          ) : mode === 'post' ? (
+            '生成帖子'
           ) : (
             '生成回复'
           )}
