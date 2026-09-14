@@ -67,3 +67,6 @@ export function fillReplyComposer(el: HTMLElement, text: string): boolean {
 
   return readBack(el, target);
 }
+
+/** 同一套写入策略，Phase 2 的主发帖框也用它（命名去掉 reply 限定） */
+export { fillReplyComposer as fillComposer };

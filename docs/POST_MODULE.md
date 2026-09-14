@@ -1,0 +1,80 @@
+# Post Copilot 模块（Phase 2）
+
+> 需求来源：`PROJECT.md` §22（仓库根目录）。技术选型见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
+
+## 1. 需求原文（PROJECT.md §22）
+
+```text
+✍️ Generate Post
+
+读取：
+  - 当前 Tweet
+  - 当前页面若干高互动 Tweet
+  - 用户指定主题
+
+生成：
+  观点型 / 反向型 / 热点型 / 短帖 / Thread 开头
+
+点击 [填入] → 自动填入 X Compose。仍然：不自动发送。
+```
+
+产品定位（`PROJECT.md` §1）：**降低"我想参与讨论，但不知道说什么"的认知成本**；后续扩展里的第一项就是「AI 帖子生成」。
+
+红线不变（`PROJECT.md` §32 / ARCHITECTURE.md §6）：不自动发帖、不自动评论、不自动点赞关注、不批量操作。**只有用户本人可以发送内容。**
+
+## 2. 与回复模块的差异
+
+| 维度 | 回复生成（Phase 1） | Post Copilot（Phase 2） |
+|---|---|---|
+| 内容来源 | 当前 Tweet（必须有） | 用户主题 / 当前 Tweet / 页面高互动 Tweet（**可以完全没有推文**） |
+| 目标输入框 | Reply composer | **主 Compose 发帖框** |
+| 风格体系 | 观点 / 补充 / 反向 / 简短 / 水贴（回应别人） | 观点型 / 反向型 / 热点型 / 短帖 / Thread 开头（表达自己） |
+| Prompt | 严格贴合原推，不复述 | 无原推约束，需要自己立论 |
+
+**两套风格必须分开配置**：`回复风格` 与 `发帖风格` 是不同维度，不能复用同一份配置。
+
+## 3. 可复用 vs 需新建
+
+**直接复用**：悬浮球 + Panel、流式生成与逐条渲染、会话缓存、`fill.ts` 的合成 paste 写入策略、设置页分区架构、风格配置的数据模型（排序 / 数量 / 开关）、Provider 的 400 降级与图片能力。
+
+**需要新建**：
+
+| 工作 | 风险 | 状态 |
+|---|---|---|
+| 主 Compose 检测 + 填入 | 🔴 高 | M0 Spike 中 |
+| 面板「回复 / 发帖」模式切换 | 🟡 中 | 未开始 |
+| 发帖 Prompt + 发帖风格配置 | 🟢 低 | 未开始 |
+| 高互动 Tweet 抓取 | 🟡 中 | 未开始 |
+| Thread 开头 / 完整 Thread | 🟢 低 | 未开始（spec 只要求"Thread 开头"一条） |
+
+## 4. M0 Spike：主发帖框能不能通
+
+**为什么先做这个**：回复模块当年把「无头验证 fill composer」排在所有任务之前（ARCHITECTURE §4 Task 0）。主发帖框的检测与写入是 Phase 2 最高风险项——X 有多种 composer（首页时间线、Modal、引用、回复），它们共用同一个 `tweetTextarea_*` testid；而且只把文字塞进 DOM 不算成功，**必须让 X 自己的状态更新**（Post 按钮从 disabled 变可用）。通不过这一步，后面全是空中楼阁。
+
+**已实现**：
+
+- `selectors.ts`：新增 `postComposer`、`postButton`、`POST_COMPOSER_KEYWORDS`
+- `composer-detector.ts`：`findPostComposer()` 按「排除回复框 → 弹窗内优先 → aria-label 像 Post text → 兜底第一个」的顺序判定；`isPostButtonEnabled()` 用于判断 X 是否认账
+- `fill.ts`：`fillComposer`（与 `fillReplyComposer` 同一套策略，去掉 reply 限定）
+- 面板：开发者选项打开时多一个「Spike：测试填入主发帖框」按钮，结果通过 toast + Console 的 `[X Copilot] post composer spike` 输出
+
+**验证步骤**：
+
+1. 设置页 → 插件信息 → 开发者选项 → 打开「显示生成耗时信息」
+2. 打开 x.com **首页**（时间线上有发帖框）
+3. 点悬浮球打开面板 → 点「Spike：测试填入主发帖框」
+4. 看结果：
+   - toast 「已填入，Post 按钮已激活」→ ✅ Spike 通过
+   - toast 「文字进去了，但 Post 按钮仍禁用」→ ⚠️ DOM 成功但 X 状态没更新，需要换写入策略
+   - toast 「未找到主发帖框」→ 选择器需要调
+5. 另外在**点开发帖弹窗**的状态下再测一次（弹窗内的 composer 是另一个变体）
+6. 测试完记得删掉那句测试文字
+
+Console 里会打出 `testId` / `ariaLabel` / `filled` / `postButtonBefore` / `postButtonAfter`，排查时把这行发出来最省事。
+
+## 5. 待验证后再定
+
+- 首页时间线发帖框 vs 弹窗内发帖框，是否需要分别处理
+- 高互动 Tweet 的抓取口径：取可见的几条、按什么排序、取多少条、是否默认开启
+- 「润色我已写的草稿」（读取作曲框内容再改写）不在 spec 内，本次**不做**
+- 完整 Thread 生成（多条带编号）不在 spec 内（spec 只要求"Thread 开头"），本次**不做**

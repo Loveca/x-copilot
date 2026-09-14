@@ -26,7 +26,17 @@ export const X_SELECTORS = {
    * - 表情（/emoji/）
    */
   photoImage: 'img[src*="pbs.twimg.com/media/"]',
+  /**
+   * 主发帖框（Compose）。注意：X 给所有 composer 同一个 `tweetTextarea_*` testid，
+   * 区分它们只能靠 aria-label（Post text / Post your reply）与所处的容器。
+   */
+  postComposer: 'div[contenteditable="true"][role="textbox"][data-testid^="tweetTextarea"]',
+  /** 发帖按钮。用于验证「X 是否认账」——填入后它应从 disabled 变为可用 */
+  postButton: '[data-testid="tweetButton"], [data-testid="tweetButtonInline"]',
 } as const;
+
+/** 主发帖框的 aria-label 关键词（与回复框区分） */
+export const POST_COMPOSER_KEYWORDS = ['post text', 'what is happening', '发帖', '有什么新鲜事'];
 
 /** 用于识别「回复输入框」的 aria-label / placeholder 关键词 */
 export const REPLY_COMPOSER_KEYWORDS = [

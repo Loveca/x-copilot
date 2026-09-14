@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
 import { TweetDetector } from '@/lib/content/x/tweet-detector';
-import { findReplyComposer } from '@/lib/content/x/composer-detector';
-import { fillReplyComposer } from '@/lib/content/x/fill';
+import { findReplyComposer, findPostComposer, isPostButtonEnabled } from '@/lib/content/x/composer-detector';
+import { fillReplyComposer, fillComposer } from '@/lib/content/x/fill';
 import {
   DEFAULT_UI_CONFIG,
   GENERATE_PORT,
@@ -35,6 +35,10 @@ function friendlyError(e: unknown): string {
 
 const secs = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 const chars = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
+
+/** M0 Spike 用的测试文本：明显是测试，方便用户一眼识别并删除 */
+const POST_SPIKE_TEXT =
+  '【X Copilot 发帖框测试】这段文字用于验证主发帖框能否被写入，请手动删除，不要发送。';
 
 /** 按风格把候选分组（保持首次出现的顺序），同风格多条合并进一张卡 */
 function groupByStyle(replies: ReplyCandidate[]): Array<{ style: string; items: ReplyCandidate[] }> {
@@ -231,6 +235,39 @@ export function App() {
     return () => clearInterval(timer);
   }, [generating]);
 
+  /** M0 Spike（Phase 2）：验证主发帖框能否被找到并写入，且 X 认账（Post 按钮激活） */
+  const spikePostComposer = useCallback(() => {
+    const composer = findPostComposer();
+    if (!composer) {
+      setToast('Spike：未找到主发帖框');
+      console.debug('[X Copilot] post composer spike: not found');
+      return;
+    }
+    const before = isPostButtonEnabled();
+    const filled = fillComposer(composer, POST_SPIKE_TEXT);
+
+    // X 需要一帧来刷新按钮状态
+    setTimeout(() => {
+      const after = isPostButtonEnabled();
+      console.debug('[X Copilot] post composer spike', {
+        testId: composer.getAttribute('data-testid'),
+        ariaLabel: composer.getAttribute('aria-label'),
+        filled,
+        postButtonBefore: before,
+        postButtonAfter: after,
+      });
+      setToast(
+        filled
+          ? after === true
+            ? 'Spike：已填入，Post 按钮已激活'
+            : after === false
+              ? 'Spike：文字进去了，但 Post 按钮仍禁用'
+              : 'Spike：已填入（未找到 Post 按钮）'
+          : 'Spike：填入失败'
+      );
+    }, 300);
+  }, []);
+
   const openSettings = useCallback(async () => {
     try {
       await browser.runtime.sendMessage({ type: 'OPEN_OPTIONS' });
@@ -334,6 +371,12 @@ export function App() {
             {timing.reasoningChars ? ` · 思维链 ${chars(timing.reasoningChars)} 字` : ''}
             {timing.receivedChars ? ` · 正文 ${chars(timing.receivedChars)} 字` : ''}
           </div>
+        )}
+
+        {debugTiming && (
+          <button className="xc-spike-btn" onClick={spikePostComposer}>
+            Spike：测试填入主发帖框
+          </button>
         )}
 
         {groupByStyle(replies).map((group) => (

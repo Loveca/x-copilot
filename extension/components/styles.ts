@@ -147,6 +147,23 @@ export const CSS_TEXT = `
 .xc-generate-btn:hover { background: #272c30; }
 .xc-generate-btn:disabled { opacity: 0.4; cursor: default; }
 
+/* Spike 用（仅开发者选项打开时出现） */
+.xc-spike-btn {
+  width: 100%;
+  margin-top: 10px;
+  border: 1px dashed #cfd9de;
+  background: #ffffff;
+  color: #536471;
+  border-radius: 10px;
+  padding: 8px 0;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.xc-spike-btn:hover { border-color: #0f1419; color: #0f1419; }
+
 .xc-empty, .xc-error {
   text-align: center;
   font-size: 13px;
