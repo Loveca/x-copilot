@@ -74,6 +74,14 @@ export const CSS_TEXT = `
 .xc-body::-webkit-scrollbar { width: 8px; }
 .xc-body::-webkit-scrollbar-thumb { background: #cfd9de; border-radius: 4px; }
 
+.xc-timing {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 11px;
+  color: #8b98a5;
+  font-variant-numeric: tabular-nums;
+}
+
 .xc-tweet-card {
   background: #f7f9f9;
   border: 1px solid #eff3f4;

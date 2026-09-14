@@ -17,42 +17,34 @@ function buildPrompt(context: TweetContext, styles: StyleConfig[], intent?: stri
     .join('\n');
 
   const parts = [
-    'You are an assistant helping a user participate naturally in conversations on X.',
+    'Write natural replies to the X post below, as if written by a real person.',
     '',
-    'Given the current Tweet, generate possible replies.',
-    '',
-    'Requirements:',
-    '1. Replies should sound like natural human posts on X.',
-    '2. Do not simply restate the original Tweet.',
-    '3. Avoid generic AI phrases such as "This is a fascinating development..." or "值得进一步关注".',
-    '4. Keep each reply concise, ideally under 140 characters.',
-    `5. Produce replies ONLY in the styles listed below, in this exact order, with these exact counts:\n${styleLines}`,
-    `6. Total replies must be exactly ${total}. Replies of the same style must have different angles from each other.`,
-    '7. Preserve the language of the original Tweet: reply in the same language the Tweet is written in.',
-    '8. Do not claim facts that are not supported by the Tweet.',
-    '9. Output format: one JSON object per line (NDJSON), written in the order above, one line per reply,',
-    '   with no array brackets, no code fences and no extra commentary — write each line as soon as it is ready:',
-    '   {"style":"观点","text":"..."}',
+    'Rules:',
+    '1. Never restate the post. No generic AI phrasing ("值得进一步关注" etc).',
+    '2. Under 140 characters each. Same language as the post. Never invent facts.',
+    `3. Styles, in this exact order and count:\n${styleLines}`,
+    `4. Total lines = ${total}. Lines of the same style must differ in angle.`,
+    '5. Output ONLY one JSON object per line, no array, no code fences, no extra text;',
+    '   write each line as soon as it is ready:',
     '   {"style":"观点","text":"..."}',
     '',
-    `Author: ${context.author ?? 'unknown'} (${context.authorHandle ?? ''})`,
-    `Tweet text: ${context.text}`,
+    `Post by ${context.author ?? 'unknown'} (${context.authorHandle ?? ''}):`,
+    context.text,
   ];
 
   if (intent) {
     parts.push(
       '',
-      'MOST IMPORTANT — the user already knows what they want to say. Their own words:',
+      'MOST IMPORTANT — the user already knows what to say. Their words:',
       `"${intent}"`,
-      'Every reply must clearly convey THIS point, phrased naturally in the given style',
-      '(do not quote it verbatim, do not add unrelated claims, keep the meaning accurate).',
-      "Keep the same language as the original Tweet unless the user's wording is in another language."
+      'Every line must convey THIS point, phrased naturally per its style',
+      '(no verbatim quoting, no unrelated claims).'
     );
   }
 
   if (context.quotedTweet?.text) {
     parts.push(
-      `Quoted tweet by ${context.quotedTweet.author ?? 'unknown'}: ${context.quotedTweet.text}`
+      `Quoted post by ${context.quotedTweet.author ?? 'unknown'}: ${context.quotedTweet.text}`
     );
   }
   return parts.join('\n');
@@ -202,6 +194,9 @@ export class OpenAICompatProvider implements LLMProvider {
     const { styles, expected, intent } = resolveStyles(options);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const startedAt = Date.now();
+    let ttfbMs = 0;
+    let firstCandidateMs = 0;
 
     let response: Response;
     try {
@@ -225,6 +220,8 @@ export class OpenAICompatProvider implements LLMProvider {
         clearTimeout(timer);
         const candidates = toCandidates(parseFullResponse(text, styles, expected), styles, expected);
         if (candidates.length === 0) throw new Error('INVALID_LLM_RESPONSE');
+        const elapsed = Date.now() - startedAt;
+        handlers.onTiming?.({ ttfbMs: elapsed, firstCandidateMs: elapsed, totalMs: elapsed });
         handlers.onPartial?.(candidates);
         return candidates;
       }
@@ -243,6 +240,7 @@ export class OpenAICompatProvider implements LLMProvider {
           const parsed = parseCandidateLine(line);
           if (parsed && raw.length < MAX_TOTAL_REPLIES) {
             raw.push(parsed);
+            if (!firstCandidateMs) firstCandidateMs = Date.now() - startedAt;
             handlers.onPartial?.(toCandidates(raw, styles, expected));
           }
         }
@@ -251,6 +249,7 @@ export class OpenAICompatProvider implements LLMProvider {
           lineBuffer = '';
           if (parsed && raw.length < MAX_TOTAL_REPLIES) {
             raw.push(parsed);
+            if (!firstCandidateMs) firstCandidateMs = Date.now() - startedAt;
             handlers.onPartial?.(toCandidates(raw, styles, expected));
           }
         }
@@ -259,6 +258,7 @@ export class OpenAICompatProvider implements LLMProvider {
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
+        if (!ttfbMs) ttfbMs = Date.now() - startedAt;
         sseBuffer += decoder.decode(value, { stream: true });
 
         let nl: number;
@@ -287,6 +287,18 @@ export class OpenAICompatProvider implements LLMProvider {
       clearTimeout(timer);
 
       if (raw.length === 0) throw new Error('INVALID_LLM_RESPONSE');
+      const totalMs = Date.now() - startedAt;
+      handlers.onTiming?.({
+        ttfbMs: ttfbMs || totalMs,
+        firstCandidateMs: firstCandidateMs || totalMs,
+        totalMs,
+      });
+      console.debug('[X Copilot] stream timing', {
+        ttfbMs: ttfbMs || totalMs,
+        firstCandidateMs: firstCandidateMs || totalMs,
+        totalMs,
+        count: raw.length,
+      });
       return toCandidates(raw, styles, expected);
     } catch (e) {
       clearTimeout(timer);

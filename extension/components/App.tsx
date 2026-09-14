@@ -50,6 +50,9 @@ export function App() {
   const [toast, setToast] = useState<string | undefined>();
   const [filledId, setFilledId] = useState<string | null>(null);
   const [intent, setIntent] = useState('');
+  const [timing, setTiming] = useState<
+    { ttfbMs: number; firstCandidateMs: number; totalMs: number } | undefined
+  >();
   const cacheRef = useRef<Map<string, ReplyCandidate[]>>(new Map());
   // 生成序号：生成过程中切换 Tweet 时，旧结果作废，避免错挂到新 Tweet
   const genSeqRef = useRef(0);
@@ -104,7 +107,12 @@ export function App() {
       let settled = false;
 
       port.onMessage.addListener((raw: unknown) => {
-        const msg = raw as { type?: string; replies?: ReplyCandidate[]; message?: string };
+        const msg = raw as {
+          type?: string;
+          replies?: ReplyCandidate[];
+          message?: string;
+          timing?: { ttfbMs: number; firstCandidateMs: number; totalMs: number };
+        };
         if (seq !== genSeqRef.current) {
           port.disconnect();
           return;
@@ -117,6 +125,7 @@ export function App() {
           activePortRef.current = null;
           setReplies(msg.replies);
           cacheRef.current.set(key, msg.replies);
+          if (msg.timing) setTiming(msg.timing);
           if (auto) setToast('回复已生成');
           setGenerating(false);
           port.disconnect();
@@ -159,6 +168,7 @@ export function App() {
       setToast(undefined);
       setFilledId(null);
       setIntent('');
+      setTiming(undefined);
       if (!t) {
         // Modal 关闭 / 离开 Tweet：取消在途请求，收起 Panel
         cancelGeneration();
@@ -262,6 +272,13 @@ export function App() {
         </button>
 
         {error && <div className="xc-error">{error}</div>}
+
+        {!generating && timing && (
+          <div className="xc-timing">
+            首个数据 {(timing.ttfbMs / 1000).toFixed(1)}s · 首条 {(timing.firstCandidateMs / 1000).toFixed(1)}s
+            · 完成 {(timing.totalMs / 1000).toFixed(1)}s
+          </div>
+        )}
 
         {groupByStyle(replies).map((group) => (
           <ReplyCard

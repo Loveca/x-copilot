@@ -10,6 +10,7 @@ import {
   normalizeUIConfig,
 } from '@/lib/config';
 import type { GenerateReplyOptions, LLMConfig, TweetContext, UIConfig } from '@/types';
+import type { LLMStreamTiming } from '@/lib/llm/provider';
 
 async function readOptions(
   incoming?: GenerateReplyOptions
@@ -54,10 +55,14 @@ export default defineBackground(() => {
         if (!config.apiKey) throw new Error('NO_API_KEY');
 
         const provider = new OpenAICompatProvider(config);
+        let timing: LLMStreamTiming | undefined;
         const replies = await provider.generateRepliesStream(msg.tweet as TweetContext, options, {
           onPartial: (partial) => send({ type: 'partial', replies: partial }),
+          onTiming: (t) => {
+            timing = t;
+          },
         });
-        send({ type: 'done', replies });
+        send({ type: 'done', replies, timing });
       } catch (e) {
         send({ type: 'error', message: e instanceof Error ? e.message : String(e) });
       }
