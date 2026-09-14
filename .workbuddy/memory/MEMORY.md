@@ -27,7 +27,9 @@
 ## 设置页架构（扩展预留）
 - Options 页为**左侧导航 + 右侧内容**分区结构（`public/options.html` + `public/options.js`，静态实现，无构建）
 - 现有分区（命名要直白，用户明确要求）：**模型配置**（服务商下拉 / API Key / 模型 / Base URL / 深度思考开关，开关即时保存） / **回复风格** / **自动生成** / **插件信息**
-- 服务商预设表在 `public/options.js` 顶部（`PROVIDERS`），判定口径要与 `lib/llm/openai-compat.ts` 的 `detectProvider()` 保持一致；`llmConfig.apiKeys` 按归一化 baseUrl 记住各家的 Key，切换时自动回填
+- 服务商预设表在 `public/options.js` 顶部（`PROVIDERS`，每项含 baseUrl / 默认 model / models 下拉清单 / 文案），判定口径要与 `lib/llm/openai-compat.ts` 的 `detectProvider()` 保持一致；`llmConfig.apiKeys` 按归一化 baseUrl 记住各家的 Key，切换时自动回填
+- 模型字段是**下拉框**（选「自定义…」露出文本框；存储值不在预设里会补一个「（当前）」选项，不静默丢失）
+- ✅ 已实测（Gemini `gemini-flash-lite-latest`）：思考开 = 首字节 7.0s / 首条 7.0s / 完成 8.1s；思考关 = 1.0s / **1.2s** / 2.2s（346 字）。**关思考后与 DeepSeek（首条 0.8s）同量级，且 Gemini 有免费额度**
 - 回复风格可配置：`uiConfig.styles: StyleConfig[]`（key/label/desc/enabled/count，顺序即候选顺序），设置页支持拖拽排序、每种 1-3 条、启用开关、恢复默认；生成时 prompt 按顺序+数量输出，count 上限 3、总数上限 10；风格变更会清空 Panel 会话缓存
 - **意图输入框**（已做）：Panel 内可选输入框，用户填「我想说什么」→ `options.intent` 透传到 prompt（优先块，要求不得原样引用、不得增添无关事实，上限 300 字）；缓存键为 `tweetId::intent`，带/不带意图结果共存；切 Tweet 时清空输入
 - **流式生成**（已做）：输出格式为 **NDJSON**（每行一个 JSON 对象），content script 用 `runtime.connect(GENERATE_PORT)` 长连接，background 边收边 `postMessage({type:'partial'})`，面板逐条渲染、可先填；端口名常量在 `lib/config.ts`（background 与 content 共用）；非流式路径保留兜底；超时 60s
