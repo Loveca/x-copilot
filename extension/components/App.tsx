@@ -59,6 +59,12 @@ export function App() {
     }
   }, []);
 
+  // 取消在途生成（关闭 Modal / 离开 Tweet 时调用）
+  const cancelGeneration = useCallback(() => {
+    genSeqRef.current++;
+    setGenerating(false);
+  }, []);
+
   // Tweet 切换：自动弹出 Panel + 自动生成（缓存命中则直接展示，不重复请求）
   useEffect(() => {
     const detector = new TweetDetector();
@@ -67,7 +73,13 @@ export function App() {
       setError(undefined);
       setToast(undefined);
       setFilledId(null);
-      if (!t) return;
+      if (!t) {
+        // Modal 关闭 / 离开 Tweet：取消在途请求，收起 Panel
+        cancelGeneration();
+        setReplies([]);
+        setOpen(false);
+        return;
+      }
       const cached = t.id ? cacheRef.current.get(t.id) : undefined;
       setReplies(cached ?? []);
       setOpen(true);
@@ -76,7 +88,7 @@ export function App() {
       }
     });
     return unobserve;
-  }, [runGenerate]);
+  }, [runGenerate, cancelGeneration]);
 
   useEffect(() => {
     if (!toast) return;

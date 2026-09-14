@@ -62,26 +62,51 @@ function extractArticle(article: Element, id?: string, handleHint?: string): Twe
 }
 
 /**
- * 当前 Tweet 判定：URL 主判 + DOM 字段提取。
- * X 打开 Tweet（含 Timeline Modal）都会 pushState 更新 URL，
- * 因此 URL 是「哪条是当前 Tweet」的可靠信号；DOM 只负责字段抽取。
+ * 当前 Tweet 判定：URL 主判 + Reply Modal 兜底 + DOM 字段提取。
+ * - 打开 Tweet 详情（含 Timeline 点进 Modal）时 X 会 pushState 更新 URL；
+ * - 但在 x.com/home 里点评论图标弹出的 Reply Modal 不改变 URL，
+ *   此时从可见 dialog 内的被回复帖子 article 提取上下文。
  */
 export class TweetDetector {
   getCurrentTweet(): TweetContext | null {
     const match = location.pathname.match(STATUS_URL_RE);
-    if (!match) return null;
-    const [, handle, id] = match;
+    if (match) {
+      const [, handle, id] = match;
 
-    const articles = [...document.querySelectorAll<HTMLElement>(X_SELECTORS.tweetArticle)];
-    if (articles.length === 0) return null;
+      const articles = [...document.querySelectorAll<HTMLElement>(X_SELECTORS.tweetArticle)];
+      if (articles.length === 0) return null;
 
-    // 优先取包含该 status 链接的 article，兜底取第一个
-    const main =
-      articles.find((a) => a.querySelector(`a[href$="/status/${id}"]`)) ?? articles[0];
+      // 优先取包含该 status 链接的 article，兜底取第一个
+      const main =
+        articles.find((a) => a.querySelector(`a[href$="/status/${id}"]`)) ?? articles[0];
 
-    const context = extractArticle(main, id, handle);
-    if (!context.text) return null;
-    return context;
+      const context = extractArticle(main, id, handle);
+      if (!context.text) return null;
+      return context;
+    }
+    return this.getReplyModalTweet();
+  }
+
+  /**
+   * Reply Modal（x.com/home 点评论图标弹出，URL 不变）：
+   * 从可见 dialog 中取被回复的 tweet article。
+   */
+  private getReplyModalTweet(): TweetContext | null {
+    const dialogs = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')];
+    for (const dialog of dialogs) {
+      if (dialog.getClientRects().length === 0) continue; // 只看可见 dialog
+      const article = dialog.querySelector(X_SELECTORS.tweetArticle);
+      if (!article) continue; // 发帖 Modal 等不含 tweet，跳过
+      const text = article.querySelector(X_SELECTORS.tweetText)?.textContent?.trim() ?? '';
+      if (!text) continue;
+
+      // 被回复帖子的 status 链接（时间戳链接，位于嵌套引用帖之前）
+      const href = article.querySelector('a[href*="/status/"]')?.getAttribute('href') ?? '';
+      const id = href.match(/\/status\/(\d+)/)?.[1];
+      const handle = href.match(/^\/([^/]+)\/status/)?.[1];
+      return extractArticle(article, id, handle);
+    }
+    return null;
   }
 
   /**
@@ -92,8 +117,7 @@ export class TweetDetector {
     let lastId: string | null = null;
 
     const check = () => {
-      const match = location.pathname.match(STATUS_URL_RE);
-      const id = match ? match[2] : null;
+      const id = this.getCurrentTweet()?.id ?? null;
       if (id === lastId) return;
       lastId = id;
       callback(id ? this.getCurrentTweet() : null);
