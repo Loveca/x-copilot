@@ -61,6 +61,17 @@ function extractArticle(article: Element, id?: string, handleHint?: string): Twe
   return context;
 }
 
+/** 调试日志：DevTools Console 里过滤 [X Copilot] 即可查看 */
+const log = (...args: unknown[]) => console.debug('[X Copilot]', ...args);
+
+function hashKey(s: string): string {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h * 31 + s.charCodeAt(i)) | 0;
+  }
+  return (h >>> 0).toString(36);
+}
+
 /**
  * 当前 Tweet 判定：URL 主判 + Reply Modal 兜底 + DOM 字段提取。
  * - 打开 Tweet 详情（含 Timeline 点进 Modal）时 X 会 pushState 更新 URL；
@@ -92,7 +103,10 @@ export class TweetDetector {
    * 从可见 dialog 中取被回复的 tweet article。
    */
   private getReplyModalTweet(): TweetContext | null {
-    const dialogs = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')];
+    const dialogs = [
+      ...document.querySelectorAll<HTMLElement>('[role="dialog"]'),
+      ...document.querySelectorAll<HTMLElement>('[aria-labelledby="modal-header"]'),
+    ];
     for (const dialog of dialogs) {
       if (dialog.getClientRects().length === 0) continue; // 只看可见 dialog
       const article = dialog.querySelector(X_SELECTORS.tweetArticle);
@@ -102,8 +116,17 @@ export class TweetDetector {
 
       // 被回复帖子的 status 链接（时间戳链接，位于嵌套引用帖之前）
       const href = article.querySelector('a[href*="/status/"]')?.getAttribute('href') ?? '';
-      const id = href.match(/\/status\/(\d+)/)?.[1];
+      const fromHref = href.match(/\/status\/(\d+)/)?.[1];
       const handle = href.match(/^\/([^/]+)\/status/)?.[1];
+
+      // 拿不到 status id 时生成稳定合成 key（时间戳 / 文本哈希），避免检测失效
+      const id =
+        fromHref ??
+        `modal-${hashKey(
+          (handle ?? '') + (article.querySelector('time')?.getAttribute('datetime') ?? '') + text.slice(0, 80)
+        )}`;
+
+      log('reply modal tweet detected:', { id, handle, text: text.slice(0, 40) });
       return extractArticle(article, id, handle);
     }
     return null;
@@ -117,10 +140,12 @@ export class TweetDetector {
     let lastId: string | null = null;
 
     const check = () => {
-      const id = this.getCurrentTweet()?.id ?? null;
+      const tweet = this.getCurrentTweet();
+      const id = tweet?.id ?? null;
       if (id === lastId) return;
       lastId = id;
-      callback(id ? this.getCurrentTweet() : null);
+      log('current tweet changed:', id, tweet?.authorHandle ?? '');
+      callback(id ? tweet : null);
     };
 
     const debouncedCheck = debounce(check, 300);
