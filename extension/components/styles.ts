@@ -120,11 +120,12 @@ export const CSS_TEXT = `
 .xc-badge {
   font-size: 11px;
   font-weight: 700;
-  color: #0f1419;
-  background: #f7f9f9;
-  border: 1px solid #eff3f4;
+  color: #ffffff;
+  background: #0f1419;
+  border: 1px solid #0f1419;
   border-radius: 9999px;
   padding: 2px 10px;
+  letter-spacing: 0.01em;
 }
 .xc-card-text { font-size: 13px; line-height: 1.55; color: #0f1419; white-space: pre-wrap; word-break: break-word; }
 

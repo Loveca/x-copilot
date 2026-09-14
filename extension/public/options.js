@@ -132,8 +132,8 @@
   var $total = document.getElementById('style-total');
   var $statusStyles = document.getElementById('status-styles');
 
-  var SVG_UP = '↑';
-  var SVG_DOWN = '↓';
+  var SVG_UP = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>';
+  var SVG_DOWN = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
 
   var $debugLine = document.getElementById('debug-line');
   var logHistory = [];
@@ -173,7 +173,7 @@
 
       var up = document.createElement('button');
       up.type = 'button';
-      up.textContent = SVG_UP;
+      up.innerHTML = SVG_UP;
       up.title = canUp ? '上移' : '已在最前';
       if (!canUp) up.className = 'is-disabled';
       up.addEventListener('click', function () {
@@ -186,7 +186,7 @@
 
       var down = document.createElement('button');
       down.type = 'button';
-      down.textContent = SVG_DOWN;
+      down.innerHTML = SVG_DOWN;
       down.title = canDown ? '下移' : '已在最后';
       if (!canDown) down.className = 'is-disabled';
       down.addEventListener('click', function () {

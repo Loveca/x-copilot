@@ -170,30 +170,34 @@
     }
     .style-row.disabled { background: #f7f9f9; }
 
-    /* 排序按钮：与数量步进器同一种容器结构（已验证可用的控件形态） */
+    /* 排序按钮：紧凑的上下 chevron */
     .order-buttons {
       display: flex;
-      align-items: center;
+      flex-direction: column;
       border: 1px solid #cfd9de;
-      border-radius: 9999px;
+      border-radius: 8px;
       overflow: hidden;
       flex-shrink: 0;
+      background: #ffffff;
     }
     .order-buttons button {
-      width: 30px;
-      height: 28px;
+      width: 28px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       border: none;
-      background: #ffffff;
+      background: transparent;
       color: #0f1419;
-      font-size: 15px;
-      line-height: 1;
+      padding: 0;
       cursor: pointer;
       font-family: inherit;
-      padding: 0;
+      transition: background 0.12s ease, color 0.12s ease;
     }
-    .order-buttons button + button { border-left: 1px solid #cfd9de; }
+    .order-buttons button + button { border-top: 1px solid #eff3f4; }
     .order-buttons button:hover:not(.is-disabled) { background: #f7f9f9; }
     .order-buttons button.is-disabled { color: #cfd9de; cursor: default; }
+    .order-buttons button svg { display: block; }
 
     .debug-line {
       font-size: 12px;
