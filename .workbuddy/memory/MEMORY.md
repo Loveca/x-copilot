@@ -3,6 +3,7 @@
 ## 技术栈定案（详见 docs/ARCHITECTURE.md）
 - WXT 0.19.x + React 18 + TS；悬浮球 + 注入式 Shadow DOM Panel（不用 chrome.sidePanel）
 - LLM：DeepSeek，OpenAI 兼容协议，默认模型 deepseek-flash（deepseek-v4-pro 为备选）；请求只从 background SW 发
+- ⚠️ **DeepSeek V4 思考模式默认开启且 `reasoning_effort=high`** → 会在正文前先流一大段 `reasoning_content`。本项目请求体固定带 `thinking:{type:'disabled'}`（可用设置页「深度思考」开回）。这是延迟问题最大的一颗雷，别漏
 - 红线：绝不自动发送/点赞/关注；API key 只存 chrome.storage.local
 
 ## 环境坑（长期有效）
@@ -23,18 +24,20 @@
 
 ## 设置页架构（扩展预留）
 - Options 页为**左侧导航 + 右侧内容**分区结构（`public/options.html` + `public/options.js`，静态实现，无构建）
-- 现有分区（命名要直白，用户明确要求）：**模型配置** / **回复风格** / **自动生成** / **插件信息**
+- 现有分区（命名要直白，用户明确要求）：**模型配置**（API Key / 模型 / Base URL / 深度思考开关，开关即时保存） / **回复风格** / **自动生成** / **插件信息**
 - 回复风格可配置：`uiConfig.styles: StyleConfig[]`（key/label/desc/enabled/count，顺序即候选顺序），设置页支持拖拽排序、每种 1-3 条、启用开关、恢复默认；生成时 prompt 按顺序+数量输出，count 上限 3、总数上限 10；风格变更会清空 Panel 会话缓存
 - **意图输入框**（已做）：Panel 内可选输入框，用户填「我想说什么」→ `options.intent` 透传到 prompt（优先块，要求不得原样引用、不得增添无关事实，上限 300 字）；缓存键为 `tweetId::intent`，带/不带意图结果共存；切 Tweet 时清空输入
 - **流式生成**（已做）：输出格式为 **NDJSON**（每行一个 JSON 对象），content script 用 `runtime.connect(GENERATE_PORT)` 长连接，background 边收边 `postMessage({type:'partial'})`，面板逐条渲染、可先填；端口名常量在 `lib/config.ts`（background 与 content 共用）；非流式路径保留兜底；超时 60s
-- 性能设计原则：用户感知的是 **TTFT**，优先做流式/逐条渲染，而非单纯换更快的模型；切模型最多省 1-2s，流式省 4-5s 体感
-- 延迟埋点：provider 统计 ttfbMs / firstCandidateMs / totalMs，经 done 消息回传，面板显示「首个数据 x.xs · 首条 x.xs · 完成 x.xs」（`xc-timing`），排查延迟问题先看这三项
+- 性能设计原则：用户感知的是 **TTFT**。优化优先级：**① 关掉思考模式**（不做的话流式也救不了，12s 里一个正文字符都没有）→ ② 流式 + 逐条渲染 → ③ 换更快的服务商/模型
+- 延迟埋点（`LLMStreamTiming`）：**首字节** ttfbMs（首个 SSE 分片≈网关就绪）/ **出字** firstContentMs（真正 TTFT）/ **首条** firstCandidateMs / **完成** totalMs，外加服务端回读的 model 名、reasoningChars、receivedChars。面板 `xc-timing` 显示四个数 + 模型名。生成中有实时秒表与「模型思考中 N 字 / 已接收 N 字」（`xc-progress`，onProgress 经端口 250ms 节流回传）
+  - 排查口诀：首字节快 + 出字慢 = 模型在思考/排队；出字快 + 完成慢 = 生成慢；全慢 = 网络
+- 流式解析按**大括号配对**切分（`drainObjects`），不依赖换行——模型把对象压成一行也能逐条出候选。兼容数组/代码栅栏/尾随逗号，另有纯文本行兜底（`parsePlainLines`）
 - 排序交互：设置页风格排序用**每行上下箭头按钮**（可靠、可键盘操作）。拖拽方案试过 HTML5 DnD 与 pointer 事件两次均无效，已放弃拖拽
 - ⚠️ 重要陷阱：`normalizeStyles` 之类"默认值 + 存储值合并"的逻辑**必须保留存储中的顺序**，不能"遍历默认清单按 key 查存储"——后者会静默丢弃用户排的序（踩过，见 docs/TODO.md 已修复条目）
 - config.ts 与静态 options.js 两处都有 normalizeStyles，改一处必须同步另一处
 - Panel 展示：**一个风格一张卡，同风格多条候选为卡内 item**（App 里 groupByStyle 分组），每条候选自带「填入」按钮
 - 静态 options 页与 `lib/config.ts` 有重复常量（DEFAULT_STYLES），新增/改风格时两处都要改（options.js 顶部有注释提示）
-- 存储分键：`llmConfig`（API Key/模型/BaseURL）、`uiConfig`（交互类，当前仅 autoGenerate）
+- 存储分键：`llmConfig`（API Key/模型/BaseURL/**thinking**）、`uiConfig`（交互类：autoGenerate + styles）
 - 新增设置项的流程：types 里加字段 → lib/config.ts 补默认值 → options 页加 UI → content script 用 `storage.onChanged` 订阅即时生效
 - 后续规划：主题色切换、登录、统计面板
 
