@@ -10,6 +10,7 @@ import {
   normalizeUIConfig,
 } from '@/lib/config';
 import type { ReplyCandidate, TweetContext, UIConfig } from '@/types';
+import type { LLMStreamProgress, LLMStreamTiming } from '@/lib/llm/provider';
 import { FloatingButton } from './FloatingButton';
 import { Panel } from './Panel';
 import { ReplyCard } from './ReplyCard';
@@ -22,8 +23,16 @@ function friendlyError(e: unknown): string {
   if (msg.includes('NETWORK_ERROR') || msg.includes('Failed to fetch'))
     return '无法连接到 DeepSeek 服务，请检查网络。';
   if (msg.includes('LLM_HTTP_429')) return '请求过于频繁，请稍后再试。';
+  if (msg.includes('LLM_HTTP_400'))
+    return '请求被拒绝（400）：模型名可能不被该服务商支持，或该服务商不接受「思考模式」参数，请到设置中检查。';
+  if (msg.includes('INVALID_LLM_RESPONSE')) return '模型返回内容无法解析，请重试或换个模型。';
+  const http = msg.match(/LLM_HTTP_(\d+)/);
+  if (http) return `服务端返回错误（${http[1]}），请稍后重试或检查模型配置。`;
   return '生成失败，请稍后重试。';
 }
+
+const secs = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
+const chars = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
 /** 按风格把候选分组（保持首次出现的顺序），同风格多条合并进一张卡 */
 function groupByStyle(replies: ReplyCandidate[]): Array<{ style: string; items: ReplyCandidate[] }> {
@@ -50,9 +59,10 @@ export function App() {
   const [toast, setToast] = useState<string | undefined>();
   const [filledId, setFilledId] = useState<string | null>(null);
   const [intent, setIntent] = useState('');
-  const [timing, setTiming] = useState<
-    { ttfbMs: number; firstCandidateMs: number; totalMs: number } | undefined
-  >();
+  const [timing, setTiming] = useState<LLMStreamTiming | undefined>();
+  const [progress, setProgress] = useState<LLMStreamProgress | undefined>();
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const genStartRef = useRef(0);
   const cacheRef = useRef<Map<string, ReplyCandidate[]>>(new Map());
   // 生成序号：生成过程中切换 Tweet 时，旧结果作废，避免错挂到新 Tweet
   const genSeqRef = useRef(0);
@@ -98,6 +108,9 @@ export function App() {
       }
 
       const seq = ++genSeqRef.current;
+      genStartRef.current = Date.now();
+      setElapsedMs(0);
+      setProgress(undefined);
       setGenerating(true);
       setError(undefined);
       if (auto) setToast('检测到新 Tweet，正在自动生成回复……');
@@ -111,13 +124,16 @@ export function App() {
           type?: string;
           replies?: ReplyCandidate[];
           message?: string;
-          timing?: { ttfbMs: number; firstCandidateMs: number; totalMs: number };
+          timing?: LLMStreamTiming;
+          progress?: LLMStreamProgress;
         };
         if (seq !== genSeqRef.current) {
           port.disconnect();
           return;
         }
-        if (msg.type === 'partial' && Array.isArray(msg.replies)) {
+        if (msg.type === 'progress' && msg.progress) {
+          setProgress(msg.progress);
+        } else if (msg.type === 'partial' && Array.isArray(msg.replies)) {
           // 逐条到达：先渲染出来，用户可以先看/先填
           setReplies(msg.replies);
         } else if (msg.type === 'done' && Array.isArray(msg.replies)) {
@@ -169,6 +185,7 @@ export function App() {
       setFilledId(null);
       setIntent('');
       setTiming(undefined);
+      setProgress(undefined);
       if (!t) {
         // Modal 关闭 / 离开 Tweet：取消在途请求，收起 Panel
         cancelGeneration();
@@ -192,6 +209,13 @@ export function App() {
     const timer = setTimeout(() => setToast(undefined), 2200);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  // 生成中自行走秒：即使服务端长时间没有任何分片，界面也在动，不会看着像卡死
+  useEffect(() => {
+    if (!generating) return;
+    const timer = setInterval(() => setElapsedMs(Date.now() - genStartRef.current), 200);
+    return () => clearInterval(timer);
+  }, [generating]);
 
   const openSettings = useCallback(async () => {
     try {
@@ -260,7 +284,7 @@ export function App() {
           {generating ? (
             <>
               <span className="xc-spin" />
-              正在生成……
+              正在生成 {elapsedMs > 800 ? `${(elapsedMs / 1000).toFixed(1)}s` : '……'}
             </>
           ) : intent.trim() ? (
             '按这个想法生成'
@@ -273,10 +297,25 @@ export function App() {
 
         {error && <div className="xc-error">{error}</div>}
 
+        {generating && replies.length === 0 && (
+          <div className="xc-progress">
+            {progress && progress.reasoningChars > 0
+              ? `模型思考中 ${chars(progress.reasoningChars)} 字`
+              : progress && progress.receivedChars > 0
+                ? `已接收 ${chars(progress.receivedChars)} 字`
+                : '等待模型首个字符'}
+            <span className="xc-progress-time">{secs(elapsedMs)}</span>
+          </div>
+        )}
+
         {!generating && timing && (
           <div className="xc-timing">
-            首个数据 {(timing.ttfbMs / 1000).toFixed(1)}s · 首条 {(timing.firstCandidateMs / 1000).toFixed(1)}s
-            · 完成 {(timing.totalMs / 1000).toFixed(1)}s
+            首字节 {secs(timing.ttfbMs)} · 出字 {secs(timing.firstContentMs)} · 首条{' '}
+            {secs(timing.firstCandidateMs)} · 完成 {secs(timing.totalMs)}
+            <br />
+            {timing.model ? `模型 ${timing.model}` : '模型 未知'}
+            {timing.reasoningChars ? ` · 思维链 ${chars(timing.reasoningChars)} 字` : ''}
+            {timing.receivedChars ? ` · 正文 ${chars(timing.receivedChars)} 字` : ''}
           </div>
         )}
 

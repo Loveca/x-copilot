@@ -8,6 +8,8 @@ export const DEFAULT_LLM_CONFIG: LLMConfig = {
   baseUrl: 'https://api.deepseek.com/v1',
   model: 'deepseek-flash',
   apiKey: '',
+  // 关掉思考模式：V4 默认开启且 effort=high，首条候选要等十几秒，得不偿失
+  thinking: false,
 };
 
 export const LLM_CONFIG_STORAGE_KEY = 'llmConfig';

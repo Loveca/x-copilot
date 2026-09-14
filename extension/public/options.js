@@ -4,7 +4,13 @@
 
   var LLM_KEY = 'llmConfig';
   var UI_KEY = 'uiConfig';
-  var LLM_DEFAULTS = { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-flash', apiKey: '' };
+  var LLM_DEFAULTS = {
+    baseUrl: 'https://api.deepseek.com/v1',
+    model: 'deepseek-flash',
+    apiKey: '',
+    // DeepSeek V4 思考模式默认开启且 effort=high，写回复时首条候选要等十几秒
+    thinking: false,
+  };
 
   var MAX_PER_STYLE = 3;
   var MAX_TOTAL = 10;
@@ -96,6 +102,7 @@
   var $apiKey = document.getElementById('api-key');
   var $model = document.getElementById('model');
   var $baseUrl = document.getElementById('base-url');
+  var $thinking = document.getElementById('thinking');
   var $statusLlm = document.getElementById('status-llm');
 
   function setStatus(el, text, ok) {
@@ -108,6 +115,7 @@
     $apiKey.value = cfg.apiKey || '';
     $model.value = cfg.model || '';
     $baseUrl.value = cfg.baseUrl || '';
+    $thinking.checked = cfg.thinking === true;
   });
 
   document.getElementById('save-llm').addEventListener('click', function () {
@@ -119,9 +127,27 @@
       apiKey: $apiKey.value.trim(),
       model: $model.value.trim() || LLM_DEFAULTS.model,
       baseUrl: $baseUrl.value.trim() || LLM_DEFAULTS.baseUrl,
+      thinking: $thinking.checked === true,
     };
     chrome.storage.local.set({ llmConfig: cfg }).then(function () {
       setStatus($statusLlm, '已保存', true);
+    }).catch(function () {
+      setStatus($statusLlm, '保存失败，请重试。', false);
+    });
+  });
+
+  // 深度思考开关即时生效（读改写，避免覆盖掉 API Key 等字段）
+  $thinking.addEventListener('change', function () {
+    chrome.storage.local.get(LLM_KEY).then(function (res) {
+      var cfg = Object.assign({}, LLM_DEFAULTS, res[LLM_KEY] || {});
+      cfg.thinking = $thinking.checked === true;
+      return chrome.storage.local.set({ llmConfig: cfg });
+    }).then(function () {
+      setStatus(
+        $statusLlm,
+        $thinking.checked ? '已开启深度思考，首条候选会明显变慢' : '已关闭深度思考',
+        true
+      );
     }).catch(function () {
       setStatus($statusLlm, '保存失败，请重试。', false);
     });

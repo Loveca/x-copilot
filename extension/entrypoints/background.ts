@@ -58,6 +58,7 @@ export default defineBackground(() => {
         let timing: LLMStreamTiming | undefined;
         const replies = await provider.generateRepliesStream(msg.tweet as TweetContext, options, {
           onPartial: (partial) => send({ type: 'partial', replies: partial }),
+          onProgress: (progress) => send({ type: 'progress', progress }),
           onTiming: (t) => {
             timing = t;
           },

@@ -78,8 +78,31 @@ export const CSS_TEXT = `
   margin-top: 8px;
   text-align: center;
   font-size: 11px;
+  line-height: 1.7;
   color: #8b98a5;
   font-variant-numeric: tabular-nums;
+}
+
+/* 生成中的实时进度：秒表一直在走，避免看起来像卡死 */
+.xc-progress {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #536471;
+  font-variant-numeric: tabular-nums;
+}
+.xc-progress-time {
+  display: inline-block;
+  min-width: 40px;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  background: #f7f9f9;
+  border: 1px solid #eff3f4;
+  color: #0f1419;
+  font-weight: 700;
 }
 
 .xc-tweet-card {

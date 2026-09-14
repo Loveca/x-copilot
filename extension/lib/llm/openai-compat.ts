@@ -9,6 +9,8 @@ import type {
 import type { LLMProvider, LLMStreamHandlers } from './provider';
 
 const REQUEST_TIMEOUT_MS = 60_000;
+/** 进度回调节流：避免每个 token 都往 content script 推一条消息 */
+const PROGRESS_THROTTLE_MS = 250;
 
 function buildPrompt(context: TweetContext, styles: StyleConfig[], intent?: string): string {
   const total = styles.reduce((sum, s) => sum + s.count, 0);
@@ -55,6 +57,69 @@ interface RawCandidate {
   text: string;
 }
 
+function isCandidate(v: unknown): v is RawCandidate {
+  return (
+    !!v &&
+    typeof v === 'object' &&
+    typeof (v as RawCandidate).text === 'string' &&
+    !!(v as RawCandidate).text.trim()
+  );
+}
+
+/**
+ * 从增量文本里切出所有「已闭合的 JSON 对象」。
+ *
+ * 为什么不用按换行切分：模型经常把结果压成一行（数组或粘连的对象），
+ * 那样只有等整段结束才出现换行，逐行解析会退化成「一次性全出来」。
+ * 按大括号配对切分则不依赖换行——对象一闭合就能立刻解析。
+ * 嵌套对象也会被收集，交给上层按「是否含 text 字段」筛掉。
+ */
+function drainObjects(buffer: string): { objects: string[]; rest: string } {
+  const objects: string[] = [];
+  const stack: number[] = [];
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < buffer.length; i++) {
+    const ch = buffer[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '{') stack.push(i);
+    else if (ch === '}' && stack.length > 0) {
+      const start = stack.pop() as number;
+      objects.push(buffer.slice(start, i + 1));
+    }
+  }
+
+  // 未闭合的部分（最外层那个 { 之后）留到下一轮
+  const rest = stack.length > 0 ? buffer.slice(stack[0]) : '';
+  return { objects, rest };
+}
+
+/** 单个已闭合片段 → 候选；结构不合法就丢弃（宁可少一条也不出错行） */
+function candidatesFromFragment(fragment: string): RawCandidate[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fragment);
+  } catch {
+    return [];
+  }
+  if (Array.isArray(parsed)) return parsed.filter(isCandidate);
+  if (parsed && typeof parsed === 'object') {
+    const obj = parsed as { replies?: unknown; text?: unknown; style?: unknown };
+    if (Array.isArray(obj.replies)) return obj.replies.filter(isCandidate);
+    if (typeof obj.text === 'string' && obj.text.trim()) {
+      return [{ style: typeof obj.style === 'string' ? obj.style : undefined, text: obj.text }];
+    }
+  }
+  return [];
+}
+
 /** 解析单行：容忍代码栅栏、数组括号、尾随逗号等模型常见噪音 */
 function parseCandidateLine(raw: string): RawCandidate | null {
   let line = raw.trim();
@@ -91,6 +156,30 @@ function parseCandidateLine(raw: string): RawCandidate | null {
   return null;
 }
 
+/** 纯文本行兜底：模型完全无视 JSON 时，按「风格：内容」或「1. 内容」解析 */
+function parsePlainLines(text: string, styles: StyleConfig[]): RawCandidate[] {
+  const labels = styles.map((s) => s.label);
+  return text
+    .split('\n')
+    .map((line) => {
+      const t = line.trim();
+      if (!t || t.startsWith('{') || t.startsWith('[')) return null;
+      for (const label of labels) {
+        if (t.startsWith(label)) {
+          const rest = t
+            .slice(label.length)
+            .replace(/^[：:\s]+/, '')
+            .trim();
+          if (rest) return { style: label, text: rest } as RawCandidate;
+        }
+      }
+      const numbered = t.match(/^\d+[.、)]\s*(.+)$/);
+      if (numbered) return { text: numbered[1].trim() } as RawCandidate;
+      return null;
+    })
+    .filter((c): c is RawCandidate => c !== null);
+}
+
 /** 整段文本 → 候选列表（解析整个 JSON 或逐行 NDJSON，两种都吃） */
 function parseFullResponse(
   content: string,
@@ -114,10 +203,13 @@ function parseFullResponse(
     }
   }
 
-  return stripped
+  const byLine = stripped
     .split('\n')
     .map((line) => parseCandidateLine(line))
     .filter((c): c is RawCandidate => c !== null);
+  if (byLine.length > 0) return byLine;
+
+  return parsePlainLines(stripped, styles);
 }
 
 function toCandidates(
@@ -181,11 +273,15 @@ export class OpenAICompatProvider implements LLMProvider {
       model: this.config.model,
       messages: [{ role: 'user', content: buildPrompt(context, styles, intent) }],
       temperature: 1.0,
+      // DeepSeek 思考模式开关：OpenAI 兼容端点下就是请求体的顶层字段。
+      // 默认关 —— 开启时模型会先输出一大段 reasoning_content 才吐正文，
+      // 写回复这种任务用不上，白等十几秒。
+      thinking: { type: this.config.thinking === true ? 'enabled' : 'disabled' },
       stream,
     });
   }
 
-  /** 流式生成：逐行解析 NDJSON，候选一到就回调 */
+  /** 流式生成：对象一闭合就回调，不等整段结束 */
   async generateRepliesStream(
     context: TweetContext,
     options: GenerateReplyOptions | undefined,
@@ -195,8 +291,49 @@ export class OpenAICompatProvider implements LLMProvider {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     const startedAt = Date.now();
+
     let ttfbMs = 0;
+    let firstContentMs = 0;
     let firstCandidateMs = 0;
+    let receivedChars = 0;
+    let reasoningChars = 0;
+    let servedModel = '';
+    let lastProgressAt = 0;
+    let loggedChunks = 0;
+
+    const raw: RawCandidate[] = [];
+    const seen = new Set<string>();
+
+    const reportProgress = (force = false) => {
+      if (!handlers.onProgress) return;
+      const now = Date.now();
+      if (!force && now - lastProgressAt < PROGRESS_THROTTLE_MS) return;
+      lastProgressAt = now;
+      handlers.onProgress({
+        elapsedMs: now - startedAt,
+        receivedChars,
+        reasoningChars,
+      });
+    };
+
+    const emitFragments = (fragments: string[]) => {
+      let added = false;
+      for (const fragment of fragments) {
+        for (const cand of candidatesFromFragment(fragment)) {
+          if (raw.length >= MAX_TOTAL_REPLIES) break;
+          const dedupeKey = `${cand.style ?? ''}\u0000${cand.text}`;
+          if (seen.has(dedupeKey)) continue;
+          seen.add(dedupeKey);
+          raw.push(cand);
+          added = true;
+        }
+        if (raw.length >= MAX_TOTAL_REPLIES) break;
+      }
+      if (added) {
+        if (!firstCandidateMs) firstCandidateMs = Date.now() - startedAt;
+        handlers.onPartial?.(toCandidates(raw, styles, expected));
+      }
+    };
 
     let response: Response;
     try {
@@ -221,7 +358,7 @@ export class OpenAICompatProvider implements LLMProvider {
         const candidates = toCandidates(parseFullResponse(text, styles, expected), styles, expected);
         if (candidates.length === 0) throw new Error('INVALID_LLM_RESPONSE');
         const elapsed = Date.now() - startedAt;
-        handlers.onTiming?.({ ttfbMs: elapsed, firstCandidateMs: elapsed, totalMs: elapsed });
+        handlers.onTiming?.({ ttfbMs: elapsed, firstContentMs: elapsed, firstCandidateMs: elapsed, totalMs: elapsed });
         handlers.onPartial?.(candidates);
         return candidates;
       }
@@ -229,36 +366,16 @@ export class OpenAICompatProvider implements LLMProvider {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let sseBuffer = '';
-      let lineBuffer = '';
-      const raw: RawCandidate[] = [];
-
-      const flushLines = (flushRemainder = false) => {
-        let idx: number;
-        while ((idx = lineBuffer.indexOf('\n')) >= 0) {
-          const line = lineBuffer.slice(0, idx);
-          lineBuffer = lineBuffer.slice(idx + 1);
-          const parsed = parseCandidateLine(line);
-          if (parsed && raw.length < MAX_TOTAL_REPLIES) {
-            raw.push(parsed);
-            if (!firstCandidateMs) firstCandidateMs = Date.now() - startedAt;
-            handlers.onPartial?.(toCandidates(raw, styles, expected));
-          }
-        }
-        if (flushRemainder && lineBuffer.trim()) {
-          const parsed = parseCandidateLine(lineBuffer);
-          lineBuffer = '';
-          if (parsed && raw.length < MAX_TOTAL_REPLIES) {
-            raw.push(parsed);
-            if (!firstCandidateMs) firstCandidateMs = Date.now() - startedAt;
-            handlers.onPartial?.(toCandidates(raw, styles, expected));
-          }
-        }
-      };
+      let braceBuffer = '';
+      let allText = '';
 
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
-        if (!ttfbMs) ttfbMs = Date.now() - startedAt;
+        if (!ttfbMs) {
+          ttfbMs = Date.now() - startedAt;
+          reportProgress(true);
+        }
         sseBuffer += decoder.decode(value, { stream: true });
 
         let nl: number;
@@ -268,37 +385,72 @@ export class OpenAICompatProvider implements LLMProvider {
           if (!rawLine.startsWith('data:')) continue;
           const payload = rawLine.slice(5).trim();
           if (!payload || payload === '[DONE]') continue;
+
+          if (loggedChunks < 3) {
+            loggedChunks++;
+            console.debug('[X Copilot] sse chunk #' + loggedChunks, payload.slice(0, 240));
+          }
+
+          let chunk: {
+            model?: string;
+            choices?: Array<{ delta?: { content?: string; reasoning_content?: string } }>;
+          };
           try {
-            const chunk = JSON.parse(payload) as {
-              choices?: Array<{ delta?: { content?: string } }>;
-            };
-            const delta = chunk.choices?.[0]?.delta?.content;
-            if (delta) {
-              lineBuffer += delta;
-              flushLines();
-            }
+            chunk = JSON.parse(payload) as typeof chunk;
           } catch {
-            /* 忽略无法解析的分片 */
+            continue; // 忽略无法解析的分片
+          }
+
+          if (chunk.model && !servedModel) servedModel = chunk.model;
+          const delta = chunk.choices?.[0]?.delta;
+          if (!delta) continue;
+
+          // 思维链分片：模型在「想」，不是在哑火（DeepSeek 用 reasoning_content）
+          if (delta.reasoning_content) {
+            reasoningChars += delta.reasoning_content.length;
+            reportProgress();
+          }
+
+          if (delta.content) {
+            if (!firstContentMs) firstContentMs = Date.now() - startedAt;
+            receivedChars += delta.content.length;
+            allText += delta.content;
+            braceBuffer += delta.content;
+            const { objects, rest } = drainObjects(braceBuffer);
+            braceBuffer = rest;
+            if (objects.length > 0) emitFragments(objects);
+            reportProgress();
           }
         }
       }
 
-      flushLines(true);
+      // 收尾：未闭合的尾巴 + 整段兜底
+      if (braceBuffer.trim()) emitFragments([braceBuffer]);
+      if (raw.length === 0 && allText.trim()) emitFragments([allText]);
+      if (raw.length === 0 && allText.trim()) {
+        const plain = parsePlainLines(allText, styles);
+        if (plain.length > 0) {
+          raw.push(...plain.slice(0, MAX_TOTAL_REPLIES));
+          if (!firstCandidateMs) firstCandidateMs = Date.now() - startedAt;
+          handlers.onPartial?.(toCandidates(raw, styles, expected));
+        }
+      }
       clearTimeout(timer);
 
       if (raw.length === 0) throw new Error('INVALID_LLM_RESPONSE');
+
       const totalMs = Date.now() - startedAt;
-      handlers.onTiming?.({
+      const timing = {
         ttfbMs: ttfbMs || totalMs,
+        firstContentMs: firstContentMs || totalMs,
         firstCandidateMs: firstCandidateMs || totalMs,
         totalMs,
-      });
-      console.debug('[X Copilot] stream timing', {
-        ttfbMs: ttfbMs || totalMs,
-        firstCandidateMs: firstCandidateMs || totalMs,
-        totalMs,
-        count: raw.length,
-      });
+        model: servedModel || undefined,
+        reasoningChars,
+        receivedChars,
+      };
+      handlers.onTiming?.(timing);
+      console.debug('[X Copilot] stream timing', timing);
       return toCandidates(raw, styles, expected);
     } catch (e) {
       clearTimeout(timer);

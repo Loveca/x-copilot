@@ -316,6 +316,20 @@
         <p class="desc">OpenAI 兼容 endpoint，默认 https://api.deepseek.com/v1。</p>
         <input id="base-url" type="text" placeholder="https://api.deepseek.com/v1" />
 
+        <div class="row" style="margin-top: 18px; border-top: 1px solid #eff3f4; border-bottom: none; padding-bottom: 0;">
+          <div>
+            <p class="row-label">深度思考</p>
+            <p class="row-desc">
+              开启后模型先推理再作答（DeepSeek V4 的思考模式，请求默认是开的）。写回复用不到推理，
+              开了首条候选要多等十几秒，所以默认关闭。
+            </p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="thinking" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
         <button class="btn" id="save-llm">保存</button>
         <div class="status" id="status-llm"></div>
       </div>

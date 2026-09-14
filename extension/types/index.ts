@@ -39,6 +39,11 @@ export interface LLMConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  /**
+   * 是否开启思考模式（思维链）。DeepSeek V4 默认**开启**且 effort=high，
+   * 会在吐正文前先推理数秒到十几秒 —— 写回复这种任务完全用不上，默认关闭。
+   */
+  thinking: boolean;
 }
 
 /** 交互类配置 */
