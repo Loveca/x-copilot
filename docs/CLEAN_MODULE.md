@@ -1,8 +1,10 @@
-# Feed Cleaner 模块（Phase 5）
+# Clean 模块（Phase 5）
 
-> 需求来源：`PROJECT.md` §25（仓库根目录）。技术选型见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
+> 需求来源：`PROJECT.md` §25（仓库根目录，原始叫 "Feed Cleaner"，本文档与代码统一称 **Clean**）。技术选型见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
 >
 > **状态：A 期已实现（2026-09-15）**，方案已确认。评论区清理可用；首页时间线（B 期）未开始。
+>
+> 命名说明：文档名与其它模块对齐（`REPLY_MODULE.md` / `POST_MODULE.md` / `CLEAN_MODULE.md`）。模块名为 **Clean** 而非 "Feed Cleaner"，因为它不止清理信息流——A 期清理的是帖子详情页的评论区，后续还可扩展到更多场景。代码侧对应 `clean-classifier.ts` / `clean-hider.ts`。
 
 ---
 
@@ -166,8 +168,8 @@ interface CleanerConfig {
 
 | 文件 | 职责 |
 |---|---|
-| `lib/content/x/feed-classifier.ts` | 纯函数规则引擎（signature / 相似度 / 词表 / verdict），**不碰 DOM**，可独立验证 |
-| `lib/content/x/feed-hider.ts` | DOM 层：折叠、恢复、占位条渲染、幂等标记 |
+| `lib/content/x/clean-classifier.ts` | 纯函数规则引擎（signature / 相似度 / 词表 / verdict），**不碰 DOM**，可独立验证 |
+| `lib/content/x/clean-hider.ts` | DOM 层：折叠、恢复、占位条渲染、幂等标记 |
 | `lib/content/x/tweet-detector.ts` | 新增 `collectReplyTweets()` 取评论区列表（排除主推文）；补 `isFollowing` / `isVerified` |
 | `components/App.tsx` | 编排：监听评论区 → 批量判定 → 折叠；「🛡 清理」按钮重扫 |
 | `public/options.*` | 新增「评论清理」分区：总开关、类别开关、白名单、统计 |

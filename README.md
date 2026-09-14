@@ -4,7 +4,9 @@
 
 在浏览 X 时，点开悬浮球 ✦，Copilot 自动识别当前 Tweet，生成 5 条不同风格的回复候选（观点 / 补充 / 反向 / 简短 / 水贴），点击「填入」写入 Reply 输入框，由你自己检查后发送。
 
-技术方案见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)，产品需求见 [`docs/PROJECT.md`](docs/PROJECT.md)，回复生成模块的功能全景见 [`docs/REPLY_MODULE.md`](docs/REPLY_MODULE.md)。
+技术方案见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)，产品需求见 [`PROJECT.md`](PROJECT.md)（仓库根目录）。
+
+模块文档：回复生成 [`docs/REPLY_MODULE.md`](docs/REPLY_MODULE.md) · 发帖 [`docs/POST_MODULE.md`](docs/POST_MODULE.md) · 内容清理 [`docs/CLEAN_MODULE.md`](docs/CLEAN_MODULE.md)。
 
 ## 技术架构
 
@@ -42,13 +44,14 @@ npm install
 2. 构建完成后，加载插件 → 打开任意 X 页面 → 点击 ✦ 悬浮球 → Panel **左下角「设置」** → 在「模型配置」里选**服务商** → 填入 API Key → 保存
 3. 选服务商会自动填入对应的 Base URL 与模型（DeepSeek 默认 `deepseek-flash`；Gemini 默认 `gemini-flash-lite-latest`），模型是下拉框，里面只列该服务商实测可用的模型，选「自定义…」可手动填；各服务商的 Key 会分别记下来，来回切换自动回填
 
-设置页分为三个分区（左侧导航切换）：
+设置页分为五个分区（左侧导航切换）：
 
 | 分区 | 内容 |
 |---|---|
 | 模型配置 | 服务商（DeepSeek / Google Gemini / 自定义）、API Key、模型、API Base URL、深度思考开关（默认关；开启后首条候选会慢十几秒） |
 | 回复风格 | 上下箭头排序、每种风格的候选数量与启用开关（生成时严格按此顺序与数量输出） |
 | 自动生成 | 自动生成回复开关（关闭后需手动点击生成） |
+| 评论清理 | 清理开关、六类识别类别（重复刷屏 / 机器人账号 / 色情引流 / 赌博引流 / 诈骗引流 / 广告推广）、白名单（豁免关注 / 认证账号）、累计统计 |
 | 插件信息 | 版本、仓库地址、数据处理说明、开发者选项（显示生成耗时信息，默认关） |
 
 ## 构建 Extension
@@ -103,5 +106,6 @@ npm run dev       # 开发模式（HMR）
 
 - 不读取、不保存 X 登录 Cookie 或密码
 - 不自动发送 / 点赞 / 关注，不做任何批量账号操作
+- **评论清理只做本地隐藏**：被判定为垃圾内容 / 机器人回复的条目折叠成一条占位条（随时可展开、可恢复），**不封禁、不举报、不静音、不取关任何账号**，全程零写操作；判定在本机离线完成，不发送数据给任何服务
 - API Key 仅存本机，仅从 background service worker 发起请求
 - **带图生成**：帖子里有照片时，图片会取回并随文字一起发给模型（最多 4 张）。图片可能包含人脸、文字等信息，同样会送到你配置的模型服务商；不需要可换用纯文本模型或反馈给我加开关

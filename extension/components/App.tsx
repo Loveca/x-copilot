@@ -5,8 +5,8 @@ import {
   collectReplyTweets,
   collectTimelineTweets,
 } from '@/lib/content/x/tweet-detector';
-import { classifyTweet, signature } from '@/lib/content/x/feed-classifier';
-import { hideTweet, resetAllHidden } from '@/lib/content/x/feed-hider';
+import { classifyTweet, signature } from '@/lib/content/x/clean-classifier';
+import { hideTweet, resetAllHidden } from '@/lib/content/x/clean-hider';
 import { findReplyComposer, findPostComposer, isPostButtonEnabled } from '@/lib/content/x/composer-detector';
 import { fillReplyComposer, fillComposer } from '@/lib/content/x/fill';
 import {

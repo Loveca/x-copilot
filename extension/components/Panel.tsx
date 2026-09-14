@@ -10,7 +10,7 @@ interface Props {
   onModeChange: (mode: CopilotMode) => void;
   /** 当前页面已识别到具体推文（详情页 / 回复弹窗）时，发帖不可用 */
   postDisabled?: boolean;
-  /** Feed Cleaner：手动重扫评论区 */
+  /** Clean 模块：手动重扫评论区 */
   onClean?: () => void;
   children: ReactNode;
 }

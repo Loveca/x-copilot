@@ -537,7 +537,7 @@
     saveUI();
   });
 
-  // ---------- 评论清理（Feed Cleaner） ----------
+  // ---------- 评论清理（Clean 模块） ----------
   function bindCleanerToggle(id, read, write) {
     var el = document.getElementById(id);
     if (!el) return;

@@ -68,7 +68,7 @@ function extractArticle(article: Element, id?: string, handleHint?: string): Twe
   const timeEl = article.querySelector(X_SELECTORS.time);
   const timestamp = timeEl?.getAttribute('datetime') ?? undefined;
 
-  // Feed Cleaner 白名单：认证账号 / 已关注账号
+  // Clean 模块白名单：认证账号 / 已关注账号
   const isVerified = article.querySelector('[data-testid="icon-verified"]') !== null;
   const isFollowing = /(following|正在关注|已关注|正在跟隨)/i.test(userNameEl?.textContent ?? '');
 
@@ -141,7 +141,7 @@ function hashKey(s: string): string {
  * - 但在 x.com/home 里点回复图标弹出的 Reply Modal 不改变 URL，
  *   此时从可见 dialog 内的被回复帖子 article 提取上下文。
  */
-/** 单条帖子 + 它的 DOM 元素（Feed Cleaner 需要元素引用才能折叠） */
+/** 单条帖子 + 它的 DOM 元素（Clean 模块需要元素引用才能折叠） */
 export interface TweetEntry {
   tweet: TweetContext;
   el: HTMLElement;

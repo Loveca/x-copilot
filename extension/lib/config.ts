@@ -92,7 +92,7 @@ export const DEFAULT_POST_STYLES: StyleConfig[] = [
   },
 ];
 
-/** Feed Cleaner 默认配置（评论清理优先，首页时间线清理放后阶段） */
+/** Clean 模块默认配置（评论清理优先，首页时间线清理放后阶段） */
 export const DEFAULT_CLEANER_CONFIG: CleanerConfig = {
   enabled: true,
   categories: {

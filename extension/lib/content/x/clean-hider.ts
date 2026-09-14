@@ -1,5 +1,5 @@
 import type { SpamVerdict } from '@/types';
-import { categoryLabel } from './feed-classifier';
+import { categoryLabel } from './clean-classifier';
 
 /**
  * 把被判定为垃圾的帖子折叠成一条占位条。
