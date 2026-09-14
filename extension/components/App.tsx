@@ -264,7 +264,9 @@ export function App() {
             <div className="xc-tweet-author">
               {tweet.author ?? '未知用户'} {tweet.authorHandle ? `· ${tweet.authorHandle}` : ''}
             </div>
-            <div className="xc-tweet-text">{tweet.text}</div>
+            <div className="xc-tweet-text">
+              {tweet.text || '（这条帖子没有文字，只有图片）'}
+            </div>
           </div>
         ) : (
           <div className="xc-empty">

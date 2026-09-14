@@ -84,6 +84,10 @@ function extractArticle(article: Element, id?: string, handleHint?: string): Twe
     replyCount,
   };
 
+  // 帖子图片（照片附件，最多 4 张）
+  const images = extractImages(article);
+  if (images.length > 0) context.images = images;
+
   // 引用推文：主 article 内嵌套的第一层 article（仅提取一层）
   const quoted = article.querySelector(`${X_SELECTORS.tweetArticle} ${X_SELECTORS.tweetArticle}`);
   if (quoted && quoted !== article) {
@@ -123,7 +127,8 @@ export class TweetDetector {
         articles.find((a) => a.querySelector(`a[href$="/status/${id}"]`)) ?? articles[0];
 
       const context = extractArticle(main, id, handle);
-      if (!context.text) return null;
+      // 纯图帖没有正文，只有附件 —— 只要有图就算一条有效帖子
+      if (!context.text && !(context.images?.length ?? 0)) return null;
       return context;
     }
     return this.getReplyModalTweet();
@@ -143,7 +148,9 @@ export class TweetDetector {
       const article = dialog.querySelector(X_SELECTORS.tweetArticle);
       if (!article) continue; // 发帖 Modal 等不含 tweet，跳过
       const text = article.querySelector(X_SELECTORS.tweetText)?.textContent?.trim() ?? '';
-      if (!text) continue;
+      const hasImages = article.querySelector(X_SELECTORS.photoImage) !== null;
+      // 纯图帖（无正文）也要能识别，不能因为没文字就当没检测到
+      if (!text && !hasImages) continue;
 
       // 被回复帖子的 status 链接（时间戳链接，位于嵌套引用帖之前）
       const href = article.querySelector('a[href*="/status/"]')?.getAttribute('href') ?? '';

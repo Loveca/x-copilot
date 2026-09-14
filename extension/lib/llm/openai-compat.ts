@@ -44,7 +44,8 @@ function buildPrompt(
     '   {"style":"观点","text":"..."}',
     '',
     `Post by ${context.author ?? 'unknown'} (${context.authorHandle ?? ''}):`,
-    context.text,
+    // 纯图帖没有正文，明确告知模型，否则它会以为漏了内容而自由发挥
+    context.text.trim() ? context.text : '(the post has no text, only the image(s) attached below)',
   ];
 
   if (intent) {
@@ -203,11 +204,7 @@ function parsePlainLines(text: string, styles: StyleConfig[]): RawCandidate[] {
 }
 
 /** 整段文本 → 候选列表（解析整个 JSON 或逐行 NDJSON，两种都吃） */
-function parseFullResponse(
-  content: string,
-  styles: StyleConfig[],
-  expected: string[]
-): RawCandidate[] {
+function parseFullResponse(content: string, styles: StyleConfig[]): RawCandidate[] {
   const trimmed = content.trim();
   if (!trimmed) return [];
 
@@ -482,7 +479,7 @@ export class OpenAICompatProvider implements LLMProvider {
         // 环境不支持流式读取：退化为一次性读取
         const text = await response.text();
         clearTimeout(timer);
-        const candidates = toCandidates(parseFullResponse(text, styles, expected), styles, expected);
+        const candidates = toCandidates(parseFullResponse(text, styles), styles, expected);
         if (candidates.length === 0) throw new Error('INVALID_LLM_RESPONSE');
         const elapsed = Date.now() - startedAt;
         handlers.onTiming?.({ ttfbMs: elapsed, firstContentMs: elapsed, firstCandidateMs: elapsed, totalMs: elapsed });
@@ -620,7 +617,7 @@ export class OpenAICompatProvider implements LLMProvider {
     const content = data.choices?.[0]?.message?.content;
     if (!content) throw new Error('INVALID_LLM_RESPONSE');
 
-    const candidates = toCandidates(parseFullResponse(content, styles, expected), styles, expected);
+    const candidates = toCandidates(parseFullResponse(content, styles), styles, expected);
     if (candidates.length === 0) throw new Error('INVALID_LLM_RESPONSE');
     return candidates;
   }
