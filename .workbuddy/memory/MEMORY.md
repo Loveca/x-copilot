@@ -16,6 +16,6 @@
 
 ## 仓库约定
 - Git 身份：Loveca <Loveca@users.noreply.github.com>（GitHub 用户名 Loveca），已写入本仓库 local config；历史提交已批量重写为该身份。
-- 远端：origin = https://github.com/Loveca/x-copilot.git（master 已跟踪）。
-- 网络：本机直连 github.com 不通，需走本地代理 127.0.0.1:7897（Clash 混合端口）；已配置仓库级 `http.https://github.com.proxy`。若某天推送失败且报连接重置，先确认代理是否在运行、端口是否变化。
+- 远端：origin = **git@github.com:Loveca/x-copilot.git（SSH）**，master 已跟踪。
+- 推送方式：本机 SSH 已配好（`~/.ssh/id_ed25519_github` + config 中的 github.com Host 段），`ssh -T git@github.com` 认证为 Loveca；**SSH 22 端口直连可用，无需代理，无需 GCM/HTTPS**。HTTPS 直连 github.com 反而被重置，别走那条路。
 - 本项目历史曾因环境丢文件而丢失，为避免再次发生，重要变更后应及时 `git push`。
