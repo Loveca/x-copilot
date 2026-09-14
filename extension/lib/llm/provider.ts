@@ -33,6 +33,8 @@ export interface LLMStreamTiming {
   reasoningChars?: number;
   /** 正文总字符数 */
   receivedChars?: number;
+  /** 本次请求实际随消息发出的图片张数（模型不认图降级重试后为 0） */
+  imageCount?: number;
 }
 
 export interface LLMProvider {

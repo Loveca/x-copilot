@@ -287,6 +287,9 @@ function detectProvider(baseUrl: string): ProviderKind {
 }
 
 export class OpenAICompatProvider implements LLMProvider {
+  /** 本次请求实际发出的图片张数（降级重试后可能少于传入） */
+  private usedImageCount = 0;
+
   constructor(private config: LLMConfig) {}
 
   private endpoint(): string {
@@ -388,6 +391,7 @@ export class OpenAICompatProvider implements LLMProvider {
         signal
       );
       if (response.status !== 400) {
+        this.usedImageCount = attempt.images.length;
         if (attempt.drop === 'images') {
           visionUnsupported.add(capabilityKey);
           console.debug('[X Copilot] model rejected images, continuing text-only');
@@ -571,6 +575,7 @@ export class OpenAICompatProvider implements LLMProvider {
         model: servedModel || undefined,
         reasoningChars,
         receivedChars,
+        imageCount: this.usedImageCount,
       };
       handlers.onTiming?.(timing);
       console.debug('[X Copilot] stream timing', timing);

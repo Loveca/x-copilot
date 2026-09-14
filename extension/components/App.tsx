@@ -328,6 +328,7 @@ export function App() {
             {secs(timing.firstCandidateMs)} · 完成 {secs(timing.totalMs)}
             <br />
             {timing.model ? `模型 ${timing.model}` : '模型 未知'}
+            {timing.imageCount ? ` · 图片 ${timing.imageCount} 张` : ''}
             {timing.reasoningChars ? ` · 思维链 ${chars(timing.reasoningChars)} 字` : ''}
             {timing.receivedChars ? ` · 正文 ${chars(timing.receivedChars)} 字` : ''}
           </div>
