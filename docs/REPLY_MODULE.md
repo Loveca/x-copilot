@@ -29,7 +29,9 @@
 
 ## 4. 生成与模型
 
-- DeepSeek（OpenAI 兼容协议），默认 `deepseek-flash`；Base URL 与模型可在设置页修改
+- **可切换服务商**（设置页「模型配置 → 服务商」）：DeepSeek 官方 / Google Gemini（有免费额度）/ 自定义；切换时自动填入该服务商的 Base URL 与模型，各服务商的 API Key 分别记住、来回切自动回填
+- 思考模式参数**按服务商分派**：DeepSeek 发 `thinking:{type}`，Gemini 发 `reasoning_effort`，其他服务商不发扩展参数。若服务商以 HTTP 400 拒收这些参数，会自动去掉参数重试一次
+- OpenAI 兼容协议；DeepSeek 默认 `deepseek-flash`，Gemini 默认 `gemini-flash-lite-latest`；Base URL 与模型均可手动改
 - **流式生成**：走 `runtime.connect` 长连接，background 边收边把候选推给面板，**第一条候选到达即渲染**，可先看先填；非流式路径保留作兜底
 - **输出格式为 NDJSON**（每行一个完整 JSON 对象 `{"style":"…","text":"…"}`），这是能逐行解析的前提；解析器同时兼容整体 JSON 数组、代码栅栏、尾随逗号等噪音
 - 请求只从 **background service worker** 发出（解决 CORS + 保护 API Key）；Key 仅存 `chrome.storage.local`
@@ -96,8 +98,8 @@
 ## 10. 尚未实现
 
 - **候选级微调**：单条「更短 / 更口语 / 更犀利」
-- **服务商预设**：一键切换快速模型服务商（智谱 / 百炼 / 火山方舟 / 硅基流动等）
 - **用量与成本护栏**：每日调用上限 + 已用次数显示
+- **更多服务商预设**：智谱 / 百炼 / 火山方舟 / 硅基流动等（结构已就绪，加一条预设即可）
 - **并行双请求**：两个请求各生成一部分，谁先回先渲染（进一步压首屏）
 - **自定义风格**：用户自行新增风格（如提问式、数据党）
 - **编辑 diff 回收 / 👍👎 反馈**：为个人风格学习与质量筛选铺路

@@ -102,6 +102,20 @@
     input[type="text"]:focus, input[type="password"]:focus { border-color: #0f1419; }
     input::placeholder { color: #8b98a5; }
 
+    select {
+      width: 100%;
+      background: #ffffff;
+      color: #0f1419;
+      border: 1px solid #cfd9de;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      cursor: pointer;
+    }
+    select:focus { border-color: #0f1419; }
+
     .btn {
       margin-top: 18px;
       border: none;
@@ -304,24 +318,29 @@
       <p class="pane-desc">API Key 仅保存在本机浏览器存储中，不会上传。</p>
 
       <div class="group">
+        <label for="provider">服务商</label>
+        <p class="desc" id="provider-desc">选择服务商会自动填入对应的 Base URL 与模型，仍可手动修改。</p>
+        <select id="provider">
+          <option value="deepseek">DeepSeek 官方</option>
+          <option value="gemini">Google Gemini（有免费额度）</option>
+          <option value="custom">自定义</option>
+        </select>
+
         <label for="api-key">API Key</label>
-        <p class="desc">在 <a href="https://platform.deepseek.com/" target="_blank" rel="noreferrer">DeepSeek 开放平台</a> 获取，格式 sk-...</p>
+        <p class="desc" id="api-key-desc">在 DeepSeek 开放平台获取，格式 sk-...</p>
         <input id="api-key" type="password" placeholder="sk-..." />
 
         <label for="model">模型</label>
-        <p class="desc">默认 deepseek-flash；可选 deepseek-v4-pro（更强但更贵更慢）。</p>
         <input id="model" type="text" placeholder="deepseek-flash" />
 
         <label for="base-url">API Base URL</label>
-        <p class="desc">OpenAI 兼容 endpoint，默认 https://api.deepseek.com/v1。</p>
         <input id="base-url" type="text" placeholder="https://api.deepseek.com/v1" />
 
         <div class="row" style="margin-top: 18px; border-top: 1px solid #eff3f4; border-bottom: none; padding-bottom: 0;">
           <div>
             <p class="row-label">深度思考</p>
-            <p class="row-desc">
-              开启后模型先推理再作答（DeepSeek V4 的思考模式，请求默认是开的）。写回复用不到推理，
-              开了首条候选要多等十几秒，所以默认关闭。
+            <p class="row-desc" id="thinking-desc">
+              开启后模型先推理再作答。写回复用不到推理，开了首条候选要多等十几秒，默认关闭。
             </p>
           </div>
           <label class="switch">

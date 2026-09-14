@@ -16,18 +16,18 @@ X 页面 (content script, Shadow DOM UI)
         ↓ chrome.runtime.sendMessage
 Background service worker（无状态，LLM 请求代理）
     ↓ fetch
-DeepSeek API（OpenAI 兼容协议，默认 deepseek-flash）
+模型服务（OpenAI 兼容协议，默认 DeepSeek deepseek-flash，可切 Google Gemini）
 ```
 
 - 构建工具链：WXT + Vite + React 18 + TypeScript
-- LLM：DeepSeek（`https://api.deepseek.com/v1`），API Key 只存本机 `chrome.storage.local`
-- 权限最小化：仅 `storage` + `x.com` / `api.deepseek.com` 两个 host
+- LLM：可切换服务商 —— DeepSeek 官方（`https://api.deepseek.com/v1`，默认）或 Google Gemini（`https://generativelanguage.googleapis.com/v1beta/openai`，有免费额度）；API Key 只存本机 `chrome.storage.local`
+- 权限最小化：仅 `storage` + `x.com` / `api.deepseek.com` / `generativelanguage.googleapis.com` 三个 host（自定义服务商需自行把域名加进 `wxt.config.ts` 的 host_permissions 后重新构建）
 
 ## 环境要求
 
 - Node.js ≥ 18（建议 20+）
 - Chrome / Edge 浏览器（Manifest V3）
-- DeepSeek API Key
+- 一个模型服务商的 API Key（DeepSeek 或 Google Gemini 均可）
 
 ## 安装依赖
 
@@ -38,15 +38,15 @@ npm install
 
 ## 配置 API
 
-1. 在 [DeepSeek 开放平台](https://platform.deepseek.com/) 创建 API Key
-2. 构建完成后，加载插件 → 打开任意 X 页面 → 点击 ✦ 悬浮球 → Panel **左下角「设置」** → 填入 API Key → 保存
-3. （可选）修改模型或 Base URL，默认 `deepseek-flash` / `https://api.deepseek.com/v1`
+1. 取一个 API Key：[DeepSeek 开放平台](https://platform.deepseek.com/)（`sk-...`）或 [Google AI Studio](https://aistudio.google.com/apikey)（`AIza...`，有免费额度）
+2. 构建完成后，加载插件 → 打开任意 X 页面 → 点击 ✦ 悬浮球 → Panel **左下角「设置」** → 在「模型配置」里选**服务商** → 填入 API Key → 保存
+3. 选服务商会自动填入对应的 Base URL 与模型（DeepSeek 默认 `deepseek-flash`；Gemini 默认 `gemini-flash-lite-latest`），也可手动改；各服务商的 Key 会分别记下来，来回切换自动回填
 
 设置页分为三个分区（左侧导航切换）：
 
 | 分区 | 内容 |
 |---|---|
-| 模型配置 | API Key、模型、API Base URL、深度思考开关（默认关；开启后首条候选会慢十几秒） |
+| 模型配置 | 服务商（DeepSeek / Google Gemini / 自定义）、API Key、模型、API Base URL、深度思考开关（默认关；开启后首条候选会慢十几秒） |
 | 回复风格 | 拖拽排序、每种风格的候选数量与启用开关（生成时严格按此顺序与数量输出） |
 | 自动生成 | 自动生成回复开关（关闭后需手动点击生成） |
 | 插件信息 | 版本、仓库地址、数据处理说明 |
@@ -85,19 +85,19 @@ npm run dev       # 开发模式（HMR）
 ## 常见问题
 
 **Q：点击生成提示「尚未配置 API Key」？**
-点击 Panel 左下角「设置」→ 填入 DeepSeek API Key 并保存。
+点击 Panel 左下角「设置」→ 选好服务商 → 填入 API Key 并保存。
 
 **Q：提示「未找到回复输入框」？**
 先点击 Tweet 下方的 Reply 按钮展开输入框，再点「填入」。
 
 **Q：生成失败 / 无法连接？**
-检查网络与 API Key；DeepSeek 服务偶尔限流（429），稍后重试。
+检查网络与 API Key；服务商限流或免费额度用尽时会返回 429，稍后重试或换服务商。
 
 **Q：插件会自动发送回复吗？**
 不会。任何情况下插件都不点击 Reply / Send / Post，发送动作只能由你本人完成。
 
 **Q：我的 Tweet 数据会被上传吗？**
-当前识别的 Tweet 文本会发送给你配置的 LLM endpoint（默认 DeepSeek）用于生成回复，不经过任何其他服务器，也不会被插件存储。
+当前识别的 Tweet 文本会发送给你在「模型配置」中选定的模型服务商（默认 DeepSeek，可选 Google Gemini）用于生成回复，不经过任何其他服务器，也不会被插件存储。
 
 ## 隐私与安全
 

@@ -40,10 +40,13 @@ export interface LLMConfig {
   apiKey: string;
   model: string;
   /**
-   * 是否开启思考模式（思维链）。DeepSeek V4 默认**开启**且 effort=high，
+   * 是否开启思考模式（思维链）。DeepSeek V4 / Gemini 默认**开启**，
    * 会在吐正文前先推理数秒到十几秒 —— 写回复这种任务完全用不上，默认关闭。
+   * 具体参数按服务商分派（见 lib/llm/openai-compat.ts）。
    */
   thinking: boolean;
+  /** 各服务商各自记住的 API Key（键为归一化后的 baseUrl），切换服务商时自动回填 */
+  apiKeys?: Record<string, string>;
 }
 
 /** 交互类配置 */

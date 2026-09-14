@@ -8,9 +8,64 @@
     baseUrl: 'https://api.deepseek.com/v1',
     model: 'deepseek-flash',
     apiKey: '',
-    // DeepSeek V4 思考模式默认开启且 effort=high，写回复时首条候选要等十几秒
+    // DeepSeek V4 / Gemini 的思考模式默认开启，写回复时首条候选要等十几秒
     thinking: false,
   };
+
+  // 服务商预设。注意：与 extension/lib/llm/openai-compat.ts 的 detectProvider() 判定口径保持一致
+  var PROVIDERS = [
+    {
+      key: 'deepseek',
+      label: 'DeepSeek 官方',
+      baseUrl: 'https://api.deepseek.com/v1',
+      model: 'deepseek-flash',
+      keyPlaceholder: 'sk-...',
+      keyDesc:
+        '在 <a href="https://platform.deepseek.com/" target="_blank" rel="noreferrer">DeepSeek 开放平台</a> 获取，格式 sk-...',
+      thinkingDesc:
+        '开启后模型先推理再作答（DeepSeek V4 的思考模式，请求默认是开的）。写回复用不到推理，开了首条候选要多等十几秒，所以默认关闭。',
+    },
+    {
+      key: 'gemini',
+      label: 'Google Gemini（有免费额度）',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+      model: 'gemini-flash-lite-latest',
+      keyPlaceholder: 'AIza...',
+      keyDesc:
+        '在 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio</a> 免费获取，格式 AIza...；免费额度有限流，超了会报错。',
+      thinkingDesc:
+        'Gemini 同样默认带思考。关闭后首条候选明显更快；注意 Gemini 3 系列无法完全关闭思考，只会退到最低档。',
+    },
+    {
+      key: 'custom',
+      label: '自定义',
+      baseUrl: '',
+      model: '',
+      keyPlaceholder: 'sk-...',
+      keyDesc: '任意 OpenAI 兼容服务商的 API Key。',
+      thinkingDesc:
+        '仅 DeepSeek / Gemini 会自动附加对应的思考模式参数；其他服务商不附加，需要时请自行在下方 Base URL 使用对应服务商的关闭方式。',
+    },
+  ];
+
+  function providerByKey(key) {
+    for (var i = 0; i < PROVIDERS.length; i++) {
+      if (PROVIDERS[i].key === key) return PROVIDERS[i];
+    }
+    return PROVIDERS[PROVIDERS.length - 1];
+  }
+
+  function normalizeUrl(url) {
+    return String(url || '').trim().replace(/\/+$/, '');
+  }
+
+  function providerByBaseUrl(baseUrl) {
+    var url = normalizeUrl(baseUrl);
+    for (var i = 0; i < PROVIDERS.length; i++) {
+      if (PROVIDERS[i].baseUrl && normalizeUrl(PROVIDERS[i].baseUrl) === url) return PROVIDERS[i];
+    }
+    return providerByKey('custom');
+  }
 
   var MAX_PER_STYLE = 3;
   var MAX_TOTAL = 10;
@@ -99,37 +154,88 @@
   });
 
   // ---------- 模型配置 ----------
+  var $provider = document.getElementById('provider');
   var $apiKey = document.getElementById('api-key');
   var $model = document.getElementById('model');
   var $baseUrl = document.getElementById('base-url');
   var $thinking = document.getElementById('thinking');
   var $statusLlm = document.getElementById('status-llm');
+  var $providerDesc = document.getElementById('provider-desc');
+  var $apiKeyDesc = document.getElementById('api-key-desc');
+  var $thinkingDesc = document.getElementById('thinking-desc');
+
+  // 各服务商各自记住的 Key，切换服务商时自动回填
+  var llmKeys = {};
 
   function setStatus(el, text, ok) {
     el.textContent = text;
     el.className = 'status ' + (ok ? 'ok' : 'err');
   }
 
+  function applyProviderHint(p, keepValues) {
+    if (!keepValues) {
+      if (p.baseUrl) $baseUrl.value = p.baseUrl;
+      if (p.model) $model.value = p.model;
+    }
+    $apiKey.placeholder = p.keyPlaceholder || 'sk-...';
+    $apiKeyDesc.innerHTML = p.keyDesc;
+    $thinkingDesc.textContent = p.thinkingDesc;
+    $providerDesc.textContent =
+      p.key === 'custom'
+        ? '填入任意 OpenAI 兼容服务商的 Base URL 与模型名。'
+        : '已按「' + p.label + '」填入 Base URL 与模型，仍可手动修改。';
+  }
+
   chrome.storage.local.get(LLM_KEY).then(function (res) {
     var cfg = Object.assign({}, LLM_DEFAULTS, res[LLM_KEY] || {});
+    llmKeys = cfg.apiKeys || {};
     $apiKey.value = cfg.apiKey || '';
     $model.value = cfg.model || '';
     $baseUrl.value = cfg.baseUrl || '';
     $thinking.checked = cfg.thinking === true;
+
+    var p = providerByBaseUrl(cfg.baseUrl);
+    $provider.value = p.key;
+    applyProviderHint(p, true);
+  });
+
+  // 切换服务商：填入该服务商的默认 Base URL / 模型，并回填它之前保存过的 Key
+  $provider.addEventListener('change', function () {
+    var p = providerByKey($provider.value);
+    applyProviderHint(p, false);
+    $apiKey.value = llmKeys[normalizeUrl($baseUrl.value)] || '';
+    setStatus(
+      $statusLlm,
+      p.key === 'custom' ? '' : '已切换到 ' + p.label + '，确认 API Key 后点「保存」。',
+      true
+    );
   });
 
   document.getElementById('save-llm').addEventListener('click', function () {
-    if (!$apiKey.value.trim()) {
+    var key = $apiKey.value.trim();
+    if (!key) {
       setStatus($statusLlm, 'API Key 不能为空。', false);
       return;
     }
-    var cfg = {
-      apiKey: $apiKey.value.trim(),
-      model: $model.value.trim() || LLM_DEFAULTS.model,
-      baseUrl: $baseUrl.value.trim() || LLM_DEFAULTS.baseUrl,
-      thinking: $thinking.checked === true,
-    };
-    chrome.storage.local.set({ llmConfig: cfg }).then(function () {
+    var baseUrl = $baseUrl.value.trim() || LLM_DEFAULTS.baseUrl;
+    var urlKey = normalizeUrl(baseUrl);
+
+    // 读改写：保留其他服务商记下的 Key，不覆盖
+    chrome.storage.local.get(LLM_KEY).then(function (res) {
+      var prev = res[LLM_KEY] || {};
+      var keys = Object.assign({}, prev.apiKeys || {});
+      keys[urlKey] = key;
+      return chrome.storage.local.set({
+        llmConfig: {
+          apiKey: key,
+          model: $model.value.trim() || LLM_DEFAULTS.model,
+          baseUrl: baseUrl,
+          thinking: $thinking.checked === true,
+          apiKeys: keys,
+        },
+      });
+    }).then(function () {
+      llmKeys[urlKey] = key;
       setStatus($statusLlm, '已保存', true);
     }).catch(function () {
       setStatus($statusLlm, '保存失败，请重试。', false);
@@ -141,6 +247,7 @@
     chrome.storage.local.get(LLM_KEY).then(function (res) {
       var cfg = Object.assign({}, LLM_DEFAULTS, res[LLM_KEY] || {});
       cfg.thinking = $thinking.checked === true;
+      if (!cfg.apiKey && $apiKey.value.trim()) cfg.apiKey = $apiKey.value.trim();
       return chrome.storage.local.set({ llmConfig: cfg });
     }).then(function () {
       setStatus(

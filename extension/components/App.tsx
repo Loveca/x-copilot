@@ -18,13 +18,13 @@ import { ReplyCard } from './ReplyCard';
 function friendlyError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
   if (msg.includes('BAD_API_KEY')) return 'API Key 无效或已过期，请点击左下角「设置」检查配置。';
-  if (msg.includes('NO_API_KEY')) return '尚未配置 DeepSeek API Key，请点击左下角「设置」填入 Key。';
+  if (msg.includes('NO_API_KEY')) return '尚未配置 API Key，请点击左下角「设置」填入。';
   if (msg.includes('NO_STYLES_ENABLED')) return '没有启用任何回复风格，请在设置 →「回复风格」中至少启用一种。';
   if (msg.includes('NETWORK_ERROR') || msg.includes('Failed to fetch'))
-    return '无法连接到 DeepSeek 服务，请检查网络。';
-  if (msg.includes('LLM_HTTP_429')) return '请求过于频繁，请稍后再试。';
+    return '无法连接到模型服务，请检查网络或设置里的 Base URL。';
+  if (msg.includes('LLM_HTTP_429')) return '请求过于频繁或超出免费额度，请稍后再试。';
   if (msg.includes('LLM_HTTP_400'))
-    return '请求被拒绝（400）：模型名可能不被该服务商支持，或该服务商不接受「思考模式」参数，请到设置中检查。';
+    return '请求被拒绝（400）：模型名可能不被该服务商支持，请到设置中检查服务商与模型名。';
   if (msg.includes('INVALID_LLM_RESPONSE')) return '模型返回内容无法解析，请重试或换个模型。';
   const http = msg.match(/LLM_HTTP_(\d+)/);
   if (http) return `服务端返回错误（${http[1]}），请稍后重试或检查模型配置。`;

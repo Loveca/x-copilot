@@ -249,6 +249,21 @@ function assertOkStatus(status: number): void {
   if (status < 200 || status >= 300) throw new Error(`LLM_HTTP_${status}`);
 }
 
+/**
+ * 按 Base URL 判定服务商，用于分派「思考模式」参数。
+ * - DeepSeek：`thinking: {type: enabled|disabled}`（顶层字段，DeepSeek 专有）
+ * - Gemini：`reasoning_effort`（OpenAI 兼容层支持；`none` 关闭思考，2.5 系列有效，
+ *   3 系列无法完全关闭，会退到最低档）
+ * - 其他：不发任何扩展参数，避免被拒
+ */
+type ProviderKind = 'deepseek' | 'gemini' | 'generic';
+
+function detectProvider(baseUrl: string): ProviderKind {
+  if (/deepseek/i.test(baseUrl)) return 'deepseek';
+  if (/googleapis\.com/i.test(baseUrl)) return 'gemini';
+  return 'generic';
+}
+
 export class OpenAICompatProvider implements LLMProvider {
   constructor(private config: LLMConfig) {}
 
@@ -267,18 +282,60 @@ export class OpenAICompatProvider implements LLMProvider {
     context: TweetContext,
     styles: StyleConfig[],
     intent: string | undefined,
-    stream: boolean
+    stream: boolean,
+    includeProviderParams = true
   ): string {
     return JSON.stringify({
       model: this.config.model,
       messages: [{ role: 'user', content: buildPrompt(context, styles, intent) }],
       temperature: 1.0,
-      // DeepSeek 思考模式开关：OpenAI 兼容端点下就是请求体的顶层字段。
-      // 默认关 —— 开启时模型会先输出一大段 reasoning_content 才吐正文，
-      // 写回复这种任务用不上，白等十几秒。
-      thinking: { type: this.config.thinking === true ? 'enabled' : 'disabled' },
+      ...(includeProviderParams ? this.thinkingParams() : {}),
       stream,
     });
+  }
+
+  /** 思考模式参数（按服务商分派）。空对象表示该服务商不发扩展参数 */
+  private thinkingParams(): Record<string, unknown> {
+    const on = this.config.thinking === true;
+    switch (detectProvider(this.config.baseUrl)) {
+      case 'deepseek':
+        return { thinking: { type: on ? 'enabled' : 'disabled' } };
+      case 'gemini':
+        // Gemini 3 系列无法完全关闭思考，且不认 "none"（会 400，重试后反而退回默认档位）。
+        // "minimal" 是全系列通用的最低档，2.5 系列映射到 1024 思考预算。
+        return { reasoning_effort: on ? 'high' : 'minimal' };
+      default:
+        return {};
+    }
+  }
+
+  private post(bodyText: string, signal: AbortSignal): Promise<Response> {
+    return fetch(this.endpoint(), {
+      method: 'POST',
+      headers: this.headers(),
+      body: bodyText,
+      signal,
+    });
+  }
+
+  /**
+   * 发起请求；若服务商不认扩展参数（HTTP 400）则去掉参数重试一次，
+   * 保证换服务商时不会因为一个参数整条链路不可用。
+   */
+  private async requestCompletion(
+    context: TweetContext,
+    styles: StyleConfig[],
+    intent: string | undefined,
+    stream: boolean,
+    signal: AbortSignal
+  ): Promise<Response> {
+    const hasParams = Object.keys(this.thinkingParams()).length > 0;
+    const response = await this.post(this.body(context, styles, intent, stream, true), signal);
+    if (response.status === 400 && hasParams) {
+      console.debug('[X Copilot] 400 with provider params, retrying without them');
+      return this.post(this.body(context, styles, intent, stream, false), signal);
+    }
+    return response;
   }
 
   /** 流式生成：对象一闭合就回调，不等整段结束 */
@@ -337,12 +394,7 @@ export class OpenAICompatProvider implements LLMProvider {
 
     let response: Response;
     try {
-      response = await fetch(this.endpoint(), {
-        method: 'POST',
-        headers: this.headers(),
-        body: this.body(context, styles, intent, true),
-        signal: controller.signal,
-      });
+      response = await this.requestCompletion(context, styles, intent, true, controller.signal);
     } catch {
       clearTimeout(timer);
       throw new Error('NETWORK_ERROR');
@@ -469,12 +521,7 @@ export class OpenAICompatProvider implements LLMProvider {
 
     let response: Response;
     try {
-      response = await fetch(this.endpoint(), {
-        method: 'POST',
-        headers: this.headers(),
-        body: this.body(context, styles, intent, false),
-        signal: controller.signal,
-      });
+      response = await this.requestCompletion(context, styles, intent, false, controller.signal);
     } catch {
       clearTimeout(timer);
       throw new Error('NETWORK_ERROR');
