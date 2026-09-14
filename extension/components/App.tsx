@@ -23,6 +23,8 @@ function friendlyError(e: unknown): string {
   if (msg.includes('NETWORK_ERROR') || msg.includes('Failed to fetch'))
     return '无法连接到模型服务，请检查网络或设置里的 Base URL。';
   if (msg.includes('LLM_HTTP_429')) return '请求过于频繁或超出免费额度，请稍后再试。';
+  if (msg.includes('LLM_HTTP_503'))
+    return '该模型当前负载过高（503），到设置里换一个模型或稍后重试。';
   if (msg.includes('LLM_HTTP_400'))
     return '请求被拒绝（400）：模型名可能不被该服务商支持，请到设置中检查服务商与模型名。';
   if (msg.includes('INVALID_LLM_RESPONSE')) return '模型返回内容无法解析，请重试或换个模型。';

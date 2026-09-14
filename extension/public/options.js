@@ -31,10 +31,19 @@
       key: 'gemini',
       label: 'Google Gemini（有免费额度）',
       baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-      model: 'gemini-flash-latest',
-      models: ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-pro-latest'],
+      model: 'gemini-flash-lite-latest',
+      // 2026-09-14 实测免费档可用的模型（按推荐度排序）；gemini-flash-latest 与
+      // gemini-pro-latest 免费档当前不可用（503 / 无配额），故不放进来
+      models: [
+        'gemini-flash-lite-latest',
+        'gemini-3.6-flash',
+        'gemini-3.5-flash',
+        'gemini-3.5-flash-lite',
+        'gemini-3-flash-preview',
+        'gemini-2.5-flash',
+      ],
       modelsDesc:
-        '默认 gemini-flash-latest（均衡）；flash-lite 更轻更快、额度更宽；pro 效果更强但额度更紧。具体额度以 Google AI Studio 为准。',
+        '默认 gemini-flash-lite-latest（最快、额度最宽）。下列模型为实测免费档可用；若某个报 503（负载过高），换一个即可。',
       keyPlaceholder: 'AIza...',
       keyDesc:
         '在 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio</a> 免费获取，格式 AIza...；免费额度有限流，超了会报错。',
@@ -206,7 +215,7 @@
     models.forEach(function (m) {
       var opt = document.createElement('option');
       opt.value = m;
-      opt.textContent = m;
+      opt.textContent = m === p.model ? m + '（默认）' : m;
       $modelSelect.appendChild(opt);
     });
     // 存的是预设之外的自定义模型名时，补一个选项，避免静默丢失

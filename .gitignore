@@ -16,3 +16,6 @@ Thumbs.db
 *.log
 .idea/
 .vscode/
+
+# Agent 的工作记录（本地保留，不进版本库、不提交）
+.workbuddy/
