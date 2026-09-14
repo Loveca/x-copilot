@@ -1,7 +1,14 @@
 import { defineBackground } from 'wxt/sandbox';
 import { browser } from 'wxt/browser';
 import { OpenAICompatProvider } from '@/lib/llm/openai-compat';
-import { DEFAULT_LLM_CONFIG, LLM_CONFIG_STORAGE_KEY } from '@/lib/config';
+import {
+  DEFAULT_LLM_CONFIG,
+  LLM_CONFIG_STORAGE_KEY,
+  UI_CONFIG_STORAGE_KEY,
+  activeStyles,
+  normalizeUIConfig,
+} from '@/lib/config';
+import type { GenerateReplyOptions, TweetContext, UIConfig } from '@/types';
 
 /**
  * Background service worker：无状态，只做 LLM 请求代理。
@@ -19,7 +26,7 @@ export default defineBackground(() => {
 
     if (msg?.type !== 'GENERATE_REPLIES') return;
 
-    const stored = await browser.storage.local.get(LLM_CONFIG_STORAGE_KEY);
+    const stored = await browser.storage.local.get([LLM_CONFIG_STORAGE_KEY, UI_CONFIG_STORAGE_KEY]);
     const config = {
       ...DEFAULT_LLM_CONFIG,
       ...((stored[LLM_CONFIG_STORAGE_KEY] as object | undefined) ?? {}),
@@ -28,10 +35,15 @@ export default defineBackground(() => {
       throw new Error('NO_API_KEY');
     }
 
+    // 回复风格由设置页配置（顺序 / 启用 / 每条数量）
+    const uiConfig = normalizeUIConfig(stored[UI_CONFIG_STORAGE_KEY] as Partial<UIConfig> | undefined);
+    const options: GenerateReplyOptions = {
+      ...((msg.options as GenerateReplyOptions | undefined) ?? {}),
+      styles: activeStyles(uiConfig),
+    };
+
     const provider = new OpenAICompatProvider(config);
-    return provider.generateReplies(
-      msg.tweet as Parameters<typeof provider.generateReplies>[0],
-      msg.options as Parameters<typeof provider.generateReplies>[1]
-    );
+    return provider.generateReplies(msg.tweet as TweetContext, options);
   });
 });
+

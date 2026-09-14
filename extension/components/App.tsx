@@ -3,7 +3,7 @@ import { browser } from 'wxt/browser';
 import { TweetDetector } from '@/lib/content/x/tweet-detector';
 import { findReplyComposer } from '@/lib/content/x/composer-detector';
 import { fillReplyComposer } from '@/lib/content/x/fill';
-import { DEFAULT_UI_CONFIG, UI_CONFIG_STORAGE_KEY } from '@/lib/config';
+import { DEFAULT_UI_CONFIG, UI_CONFIG_STORAGE_KEY, normalizeUIConfig } from '@/lib/config';
 import type { ReplyCandidate, TweetContext, UIConfig } from '@/types';
 import { FloatingButton } from './FloatingButton';
 import { Panel } from './Panel';
@@ -13,6 +13,7 @@ function friendlyError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
   if (msg.includes('BAD_API_KEY')) return 'API Key 无效或已过期，请点击左下角「设置」检查配置。';
   if (msg.includes('NO_API_KEY')) return '尚未配置 DeepSeek API Key，请点击左下角「设置」填入 Key。';
+  if (msg.includes('NO_STYLES_ENABLED')) return '没有启用任何回复风格，请在设置 →「回复风格」中至少启用一种。';
   if (msg.includes('NETWORK_ERROR') || msg.includes('Failed to fetch'))
     return '无法连接到 DeepSeek 服务，请检查网络。';
   if (msg.includes('LLM_HTTP_429')) return '请求过于频繁，请稍后再试。';
@@ -35,7 +36,7 @@ export function App() {
 
   useEffect(() => {
     const apply = (cfg?: Partial<UIConfig>) => {
-      autoGenerateRef.current = { ...DEFAULT_UI_CONFIG, ...(cfg ?? {}) }.autoGenerate;
+      autoGenerateRef.current = normalizeUIConfig(cfg).autoGenerate;
     };
     browser.storage.local
       .get(UI_CONFIG_STORAGE_KEY)
@@ -44,6 +45,8 @@ export function App() {
     const onChanged = (changes: Record<string, { newValue?: unknown }>, area: string) => {
       if (area === 'local' && changes[UI_CONFIG_STORAGE_KEY]) {
         apply(changes[UI_CONFIG_STORAGE_KEY].newValue as Partial<UIConfig>);
+        // 风格配置变了，旧候选不再匹配，清掉缓存让它重新生成
+        cacheRef.current.clear();
       }
     };
     browser.storage.onChanged.addListener(onChanged);

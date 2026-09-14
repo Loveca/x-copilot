@@ -155,6 +155,90 @@
     .status.ok { color: #0f1419; }
     .status.err { color: #f4212e; }
 
+    /* ---------- 回复风格列表 ---------- */
+    .style-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .style-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border: 1px solid #eff3f4;
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: #ffffff;
+      transition: border-color 0.12s ease, background 0.12s ease;
+    }
+    .style-row.disabled { background: #f7f9f9; }
+    .style-row.dragging { opacity: 0.4; }
+    .style-row.drop-target { border-color: #0f1419; }
+
+    .drag-handle {
+      cursor: grab;
+      color: #8b98a5;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      padding: 2px;
+      border-radius: 4px;
+    }
+    .drag-handle:active { cursor: grabbing; }
+    .drag-handle:hover { color: #0f1419; }
+
+    .style-main { flex: 1; min-width: 0; }
+    .style-label { font-size: 13px; font-weight: 700; }
+    .style-row.disabled .style-label { color: #536471; }
+    .style-desc { font-size: 12px; color: #536471; margin-top: 2px; line-height: 1.5; }
+
+    .stepper {
+      display: flex;
+      align-items: center;
+      border: 1px solid #cfd9de;
+      border-radius: 9999px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .stepper button {
+      width: 28px; height: 28px;
+      border: none;
+      background: #ffffff;
+      color: #0f1419;
+      font-size: 15px;
+      line-height: 1;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .stepper button:hover:not(:disabled) { background: #f7f9f9; }
+    .stepper button:disabled { color: #cfd9de; cursor: default; }
+    .stepper span {
+      min-width: 22px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .style-total {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid #eff3f4;
+      font-size: 12px;
+      color: #536471;
+    }
+    .btn-link {
+      border: none;
+      background: transparent;
+      color: #536471;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      text-decoration: underline;
+      padding: 2px 4px;
+    }
+    .btn-link:hover { color: #0f1419; }
+
     a { color: #0f1419; }
     .kv { display: flex; justify-content: space-between; font-size: 13px; padding: 10px 0; border-bottom: 1px solid #eff3f4; }
     .kv:last-child { border-bottom: none; }
@@ -174,6 +258,10 @@
     <button class="nav-item active" data-pane="general">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
       模型配置
+    </button>
+    <button class="nav-item" data-pane="styles">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+      回复风格
     </button>
     <button class="nav-item" data-pane="behavior">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></svg>
@@ -208,6 +296,21 @@
 
         <button class="btn" id="save-llm">保存</button>
         <div class="status" id="status-llm"></div>
+      </div>
+    </section>
+
+    <!-- 回复风格 -->
+    <section class="pane" id="pane-styles">
+      <h2>回复风格</h2>
+      <p class="pane-desc">拖拽调整候选顺序，设定每种风格的候选数量。生成时严格按此顺序与数量输出。</p>
+
+      <div class="group">
+        <div class="style-list" id="style-list"></div>
+        <div class="style-total">
+          <span>候选总数：<strong id="style-total">5</strong> 条（上限 10）</span>
+          <button class="btn-link" id="reset-styles">恢复默认</button>
+        </div>
+        <div class="status" id="status-styles"></div>
       </div>
     </section>
 
