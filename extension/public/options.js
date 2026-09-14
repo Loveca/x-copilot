@@ -96,7 +96,7 @@
   ];
 
   // 页内状态（任何改动都整份写回 storage，避免互相覆盖）
-  var uiState = { autoGenerate: true, styles: clone(DEFAULT_STYLES) };
+  var uiState = { autoGenerate: true, styles: clone(DEFAULT_STYLES), debugTiming: false };
 
   function clone(v) { return JSON.parse(JSON.stringify(v)); }
 
@@ -519,12 +519,22 @@
     saveUI();
   });
 
+  // ---------- 开发者选项 ----------
+  var $debugTiming = document.getElementById('debug-timing');
+
+  $debugTiming.addEventListener('change', function () {
+    uiState.debugTiming = $debugTiming.checked;
+    saveUI();
+  });
+
   // ---------- 初始化：读取已保存配置 ----------
   chrome.storage.local.get(UI_KEY).then(function (res) {
     var cfg = res[UI_KEY] || {};
     uiState.autoGenerate = cfg.autoGenerate !== false;
     uiState.styles = normalizeStyles(cfg.styles);
+    uiState.debugTiming = cfg.debugTiming === true;
     $autoGenerate.checked = uiState.autoGenerate;
+    $debugTiming.checked = uiState.debugTiming;
     renderStyles();
   });
 })();

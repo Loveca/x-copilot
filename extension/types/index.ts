@@ -55,4 +55,6 @@ export interface UIConfig {
   autoGenerate: boolean;
   /** 回复风格配置（顺序、启用、数量） */
   styles: StyleConfig[];
+  /** 面板底部是否显示耗时/字数等诊断信息（开发者用，默认关） */
+  debugTiming: boolean;
 }

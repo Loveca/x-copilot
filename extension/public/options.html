@@ -410,6 +410,23 @@
           不经过任何其他服务器。插件不读取登录 Cookie、不保存密码、不收集统计数据。
         </p>
       </div>
+
+      <div class="group">
+        <div class="group-title">开发者选项</div>
+        <div class="row">
+          <div>
+            <p class="row-label">显示生成耗时信息</p>
+            <p class="row-desc">
+              在面板底部显示「首字节 / 出字 / 首条 / 完成」耗时、实际使用的模型名与字数统计，
+              排查速度问题用。平时不需要，默认关闭。
+            </p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="debug-timing" />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
     </section>
   </main>
 

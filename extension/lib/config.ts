@@ -57,6 +57,8 @@ export const DEFAULT_STYLES: StyleConfig[] = [
 export const DEFAULT_UI_CONFIG: UIConfig = {
   autoGenerate: true,
   styles: DEFAULT_STYLES,
+  // 诊断信息默认不展示给用户（设置页「开发者选项」可开）
+  debugTiming: false,
 };
 
 export const UI_CONFIG_STORAGE_KEY = 'uiConfig';
@@ -77,6 +79,7 @@ export function normalizeUIConfig(stored?: Partial<UIConfig> | null): UIConfig {
   return {
     autoGenerate: stored?.autoGenerate !== false,
     styles: normalizeStyles(stored?.styles),
+    debugTiming: stored?.debugTiming === true,
   };
 }
 

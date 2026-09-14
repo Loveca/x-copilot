@@ -64,6 +64,8 @@ export function App() {
   const [timing, setTiming] = useState<LLMStreamTiming | undefined>();
   const [progress, setProgress] = useState<LLMStreamProgress | undefined>();
   const [elapsedMs, setElapsedMs] = useState(0);
+  // 是否显示耗时/字数等诊断信息（设置页「开发者选项」开关，默认关）
+  const [debugTiming, setDebugTiming] = useState(DEFAULT_UI_CONFIG.debugTiming);
   const genStartRef = useRef(0);
   const cacheRef = useRef<Map<string, ReplyCandidate[]>>(new Map());
   // 生成序号：生成过程中切换 Tweet 时，旧结果作废，避免错挂到新 Tweet
@@ -72,13 +74,21 @@ export function App() {
   const activePortRef = useRef<ReturnType<typeof browser.runtime.connect> | null>(null);
   // 自动生成开关（设置页可关，改动即时生效）
   const autoGenerateRef = useRef(DEFAULT_UI_CONFIG.autoGenerate);
+  const uiConfigRef = useRef<UIConfig>(normalizeUIConfig());
 
   // 缓存键：同一 Tweet 下，「带意图」与「不带意图」的结果要分开存
   const cacheKey = (id?: string, intentText = '') => `${id ?? 'no-id'}::${intentText.trim()}`;
 
   useEffect(() => {
     const apply = (cfg?: Partial<UIConfig>) => {
-      autoGenerateRef.current = normalizeUIConfig(cfg).autoGenerate;
+      const next = normalizeUIConfig(cfg);
+      // 只有回复风格真的变了才清缓存；改个开关不该让已有候选作废
+      const stylesChanged =
+        JSON.stringify(next.styles) !== JSON.stringify(uiConfigRef.current.styles);
+      uiConfigRef.current = next;
+      autoGenerateRef.current = next.autoGenerate;
+      setDebugTiming(next.debugTiming);
+      if (stylesChanged) cacheRef.current.clear();
     };
     browser.storage.local
       .get(UI_CONFIG_STORAGE_KEY)
@@ -87,8 +97,6 @@ export function App() {
     const onChanged = (changes: Record<string, { newValue?: unknown }>, area: string) => {
       if (area === 'local' && changes[UI_CONFIG_STORAGE_KEY]) {
         apply(changes[UI_CONFIG_STORAGE_KEY].newValue as Partial<UIConfig>);
-        // 风格配置变了，旧候选不再匹配，清掉缓存让它重新生成
-        cacheRef.current.clear();
       }
     };
     browser.storage.onChanged.addListener(onChanged);
@@ -101,12 +109,16 @@ export function App() {
       const cleanIntent = intentText.trim();
       const key = cacheKey(target.id, cleanIntent);
 
-      // 同一 Tweet + 同一意图已生成过：直接用缓存，不重复请求
-      const cached = cacheRef.current.get(key);
-      if (cached) {
-        setReplies(cached);
-        setError(undefined);
-        return;
+      // 缓存只用于「自动弹出时避免重复请求」。
+      // 手动点「生成回复 / 重新生成 / 按这个想法生成」一律真发请求 ——
+      // 否则缓存命中会直接返回原结果，用户看到的就是「点了没反应」。
+      if (auto) {
+        const cached = cacheRef.current.get(key);
+        if (cached) {
+          setReplies(cached);
+          setError(undefined);
+          return;
+        }
       }
 
       const seq = ++genSeqRef.current;
@@ -299,7 +311,7 @@ export function App() {
 
         {error && <div className="xc-error">{error}</div>}
 
-        {generating && replies.length === 0 && (
+        {debugTiming && generating && (
           <div className="xc-progress">
             {progress && progress.reasoningChars > 0
               ? `模型思考中 ${chars(progress.reasoningChars)} 字`
@@ -310,7 +322,7 @@ export function App() {
           </div>
         )}
 
-        {!generating && timing && (
+        {debugTiming && !generating && timing && (
           <div className="xc-timing">
             首字节 {secs(timing.ttfbMs)} · 出字 {secs(timing.firstContentMs)} · 首条{' '}
             {secs(timing.firstCandidateMs)} · 完成 {secs(timing.totalMs)}
