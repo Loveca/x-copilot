@@ -127,6 +127,18 @@ export const CSS_TEXT = `
   padding: 2px 10px;
 }
 .xc-card-text { font-size: 13px; line-height: 1.55; color: #0f1419; white-space: pre-wrap; word-break: break-word; }
+
+/* 同一风格的多条候选合并在一张卡里 */
+.xc-cand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid #eff3f4;
+}
+.xc-cand:first-child { border-top: none; padding-top: 2px; }
+.xc-cand-text { flex: 1; min-width: 0; font-size: 13px; line-height: 1.55; color: #0f1419; white-space: pre-wrap; word-break: break-word; }
+
 .xc-fill-btn {
   margin-top: 8px;
   border: 1px solid #cfd9de;
@@ -138,7 +150,10 @@ export const CSS_TEXT = `
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
+.xc-fill-btn.small { margin-top: 0; padding: 5px 12px; }
 .xc-fill-btn:hover { background: #0f1419; border-color: #0f1419; color: #ffffff; }
 .xc-fill-btn.ok { border-color: #0f1419; color: #ffffff; background: #0f1419; }
 

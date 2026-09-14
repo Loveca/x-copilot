@@ -169,8 +169,9 @@
       transition: border-color 0.12s ease, background 0.12s ease;
     }
     .style-row.disabled { background: #f7f9f9; }
-    .style-row.dragging { opacity: 0.4; }
-    .style-row.drop-target { border-color: #0f1419; }
+    .style-row.dragging { opacity: 0.5; border-color: #0f1419; }
+    .style-list.dragging-active { user-select: none; }
+    .style-list.dragging-active .style-row { transition: none; }
 
     .drag-handle {
       cursor: grab;

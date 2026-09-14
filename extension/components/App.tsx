@@ -20,6 +20,22 @@ function friendlyError(e: unknown): string {
   return '生成失败，请稍后重试。';
 }
 
+/** 按风格把候选分组（保持首次出现的顺序），同风格多条合并进一张卡 */
+function groupByStyle(replies: ReplyCandidate[]): Array<{ style: string; items: ReplyCandidate[] }> {
+  const groups: Array<{ style: string; items: ReplyCandidate[] }> = [];
+  const index = new Map<string, number>();
+  replies.forEach((r) => {
+    const at = index.get(r.style);
+    if (at === undefined) {
+      index.set(r.style, groups.length);
+      groups.push({ style: r.style, items: [r] });
+    } else {
+      groups[at].items.push(r);
+    }
+  });
+  return groups;
+}
+
 export function App() {
   const [tweet, setTweet] = useState<TweetContext | null>(null);
   const [open, setOpen] = useState(false);
@@ -182,8 +198,14 @@ export function App() {
 
         {error && <div className="xc-error">{error}</div>}
 
-        {replies.map((r) => (
-          <ReplyCard key={r.id} reply={r} filled={filledId === r.id} onFill={() => fill(r)} />
+        {groupByStyle(replies).map((group) => (
+          <ReplyCard
+            key={group.style}
+            style={group.style}
+            items={group.items}
+            filledId={filledId}
+            onFill={fill}
+          />
         ))}
 
         {toast && <div className="xc-toast">{toast}</div>}
