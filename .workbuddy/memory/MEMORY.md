@@ -22,7 +22,9 @@
 
 ## 设置页架构（扩展预留）
 - Options 页为**左侧导航 + 右侧内容**分区结构（`public/options.html` + `public/options.js`，静态实现，无构建）
-- 现有分区（命名要直白，用户明确要求）：**模型配置**（LLM 配置）/ **自动生成**（自动生成开关）/ **插件信息**（版本、仓库、数据处理）
+- 现有分区（命名要直白，用户明确要求）：**模型配置** / **回复风格** / **自动生成** / **插件信息**
+- 回复风格可配置：`uiConfig.styles: StyleConfig[]`（key/label/desc/enabled/count，顺序即候选顺序），设置页支持拖拽排序、每种 1-3 条、启用开关、恢复默认；生成时 prompt 按顺序+数量输出，count 上限 3、总数上限 10；风格变更会清空 Panel 会话缓存
+- 静态 options 页与 `lib/config.ts` 有重复常量（DEFAULT_STYLES），新增/改风格时两处都要改（options.js 顶部有注释提示）
 - 存储分键：`llmConfig`（API Key/模型/BaseURL）、`uiConfig`（交互类，当前仅 autoGenerate）
 - 新增设置项的流程：types 里加字段 → lib/config.ts 补默认值 → options 页加 UI → content script 用 `storage.onChanged` 订阅即时生效
 - 后续规划：主题色切换、登录、统计面板
