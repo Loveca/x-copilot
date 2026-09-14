@@ -25,7 +25,7 @@ export function App() {
   const [replies, setReplies] = useState<ReplyCandidate[]>([]);
   const [error, setError] = useState<string | undefined>();
   const [toast, setToast] = useState<string | undefined>();
-  const [filledIds, setFilledIds] = useState<Set<string>>(new Set());
+  const [filledId, setFilledId] = useState<string | null>(null);
   const cacheRef = useRef<Map<string, ReplyCandidate[]>>(new Map());
 
   // Tweet 切换：更新状态，优先用缓存
@@ -37,7 +37,7 @@ export function App() {
       setToast(undefined);
       const cached = t?.id ? cacheRef.current.get(t.id) : undefined;
       setReplies(cached ?? []);
-      setFilledIds(new Set());
+      setFilledId(null);
     });
     return unobserve;
   }, []);
@@ -93,7 +93,8 @@ export function App() {
       const ok = fillReplyComposer(composer, reply.text);
       if (ok) {
         setToast('已填入，请检查后自行发送。');
-        setFilledIds((prev) => new Set(prev).add(reply.id));
+        // 替换语义：只标记最新填入的一条，上一条自动恢复
+        setFilledId(reply.id);
       } else {
         setToast('填入失败，请手动复制粘贴。');
       }
@@ -136,7 +137,7 @@ export function App() {
         {error && <div className="xc-error">{error}</div>}
 
         {replies.map((r) => (
-          <ReplyCard key={r.id} reply={r} filled={filledIds.has(r.id)} onFill={() => fill(r)} />
+          <ReplyCard key={r.id} reply={r} filled={filledId === r.id} onFill={() => fill(r)} />
         ))}
 
         {toast && <div className="xc-toast">{toast}</div>}
