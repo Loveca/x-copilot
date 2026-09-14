@@ -74,6 +74,8 @@ export function App() {
   const modeRef = useRef<CopilotMode>('reply');
   // tweet 同时存 ref：焦点监听要判断「是否在详情页/回复弹窗」来避免抢回复模式的面板
   const tweetRef = useRef<TweetContext | null>(null);
+  // 记录当前聚焦的主发帖框元素，供 focusout 判断「是否从发帖框移开」
+  const postComposerFocusedRef = useRef<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [replies, setReplies] = useState<ReplyCandidate[]>([]);
@@ -260,22 +262,50 @@ export function App() {
     return unobserve;
   }, [runGenerate, cancelGeneration, applyMode]);
 
-  // 发帖入口自动弹出面板：聚焦到「主发帖框」（首页内联框 / 点右侧「发帖」按钮打开的弹窗框，且不是回复框）时，
-  // 自动打开面板并切到发帖模式（不自动生成，等用户手动点）。详情页/回复弹窗（tweetRef 有值）下不抢回复模式。
+  // 发帖入口：聚焦主发帖框 → 自动弹出面板（发帖模式，不自动生成）；离开发帖框/面板且不进面板/发帖框 → 收起。
+  // 贴合用户意图：点开输入框才出面板，移开或关闭弹窗就当"不想发了"。详情页/回复弹窗（tweetRef 有值）下不自动开关。
   useEffect(() => {
-    const handler = (e: FocusEvent) => {
+    // 焦点是否落在我们自己的 UI（shadow 内的面板）里：事件 retarget 后 relatedTarget 是 shadow host
+    const isOurs = (node: EventTarget | null): boolean => {
+      const el = node as Element | null;
+      if (!el || typeof el.getRootNode !== 'function') return false;
+      const root = el.getRootNode() as ShadowRoot | Document;
+      return root instanceof ShadowRoot && root.host === el && !!root.querySelector('.xc-panel');
+    };
+    const onFocusIn = (e: FocusEvent) => {
       const el = e.target as Element | null;
-      if (!el) return;
-      if (tweetRef.current) return; // 详情页/回复弹窗：回复框聚焦不触发，交给回复模式
+      if (!el || tweetRef.current) return; // 详情页/回复弹窗不抢回复模式
       const composer = findPostComposer();
-      if (!composer) return;
-      if (composer === el || composer.contains(el)) {
+      if (composer && (composer === el || composer.contains(el))) {
+        postComposerFocusedRef.current = composer;
         applyMode('post');
         setOpen(true);
       }
     };
-    document.body.addEventListener('focusin', handler, true);
-    return () => document.body.removeEventListener('focusin', handler, true);
+    const onFocusOut = (e: FocusEvent) => {
+      const el = e.target as Element | null;
+      if (!el || tweetRef.current) return; // 详情页/回复弹窗不自动关
+      const leavingPost =
+        postComposerFocusedRef.current &&
+        (postComposerFocusedRef.current === el || postComposerFocusedRef.current.contains(el));
+      const leavingOurs = isOurs(el);
+      if (!leavingPost && !leavingOurs) return; // 不是从发帖框/面板移开
+      const related = e.relatedTarget as Element | null;
+      const goingPost = (() => {
+        if (!related) return false;
+        const c = findPostComposer();
+        return !!c && (c === related || c.contains(related));
+      })();
+      if (goingPost || isOurs(related)) return; // 焦点去了发帖框或面板内 → 保持
+      postComposerFocusedRef.current = null;
+      setOpen(false);
+    };
+    document.body.addEventListener('focusin', onFocusIn, true);
+    document.body.addEventListener('focusout', onFocusOut, true);
+    return () => {
+      document.body.removeEventListener('focusin', onFocusIn, true);
+      document.body.removeEventListener('focusout', onFocusOut, true);
+    };
   }, [applyMode]);
 
   useEffect(() => {
