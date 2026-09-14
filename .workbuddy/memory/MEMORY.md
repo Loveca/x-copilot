@@ -29,6 +29,7 @@
 - **意图输入框**（已做）：Panel 内可选输入框，用户填「我想说什么」→ `options.intent` 透传到 prompt（优先块，要求不得原样引用、不得增添无关事实，上限 300 字）；缓存键为 `tweetId::intent`，带/不带意图结果共存；切 Tweet 时清空输入
 - **流式生成**（已做）：输出格式为 **NDJSON**（每行一个 JSON 对象），content script 用 `runtime.connect(GENERATE_PORT)` 长连接，background 边收边 `postMessage({type:'partial'})`，面板逐条渲染、可先填；端口名常量在 `lib/config.ts`（background 与 content 共用）；非流式路径保留兜底；超时 60s
 - 性能设计原则：用户感知的是 **TTFT**。优化优先级：**① 关掉思考模式**（不做的话流式也救不了，12s 里一个正文字符都没有）→ ② 流式 + 逐条渲染 → ③ 换更快的服务商/模型
+  - ✅ 已实测确认：思考模式开 = 首字节 0.2s / 首条 12.5s / 完成 12.9s；关 = 0.3s / **0.8s** / **1.6s**（8× 提速，303 字正文）。网络从来不是瓶颈
 - 延迟埋点（`LLMStreamTiming`）：**首字节** ttfbMs（首个 SSE 分片≈网关就绪）/ **出字** firstContentMs（真正 TTFT）/ **首条** firstCandidateMs / **完成** totalMs，外加服务端回读的 model 名、reasoningChars、receivedChars。面板 `xc-timing` 显示四个数 + 模型名。生成中有实时秒表与「模型思考中 N 字 / 已接收 N 字」（`xc-progress`，onProgress 经端口 250ms 节流回传）
   - 排查口诀：首字节快 + 出字慢 = 模型在思考/排队；出字快 + 完成慢 = 生成慢；全慢 = 网络
 - 流式解析按**大括号配对**切分（`drainObjects`），不依赖换行——模型把对象压成一行也能逐条出候选。兼容数组/代码栅栏/尾随逗号，另有纯文本行兜底（`parsePlainLines`）
