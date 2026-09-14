@@ -3,28 +3,29 @@ export const CSS_TEXT = `
 
 .xc-host { all: initial; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif; }
 
-/* X 暗色主题色板：
-   bg #000 / surface #16181c / border #2f3336
-   text #e7e9ea / muted #71767b / 主操作 = 白底黑字 */
+/* X 浅色主题色板：
+   bg #fff / surface #f7f9f9 / border #eff3f4 (强边框 #cfd9de)
+   text #0f1419 / muted #536471 / hint #8b98a5 / error #f4212e
+   主操作 = 黑底白字（对齐 X 浅色模式的 Post 按钮） */
 
 .xc-fab {
   position: fixed;
   z-index: 2147483646;
   width: 44px; height: 44px;
   border-radius: 50%;
-  border: 1px solid #2f3336;
+  border: 1px solid #cfd9de;
   cursor: pointer;
-  background: #000;
-  color: #e7e9ea;
+  background: #ffffff;
+  color: #0f1419;
   font-size: 20px;
   line-height: 42px;
   text-align: center;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 4px 14px rgba(15, 20, 25, 0.18);
   user-select: none;
   touch-action: none;
   transition: background 0.15s ease, transform 0.15s ease;
 }
-.xc-fab:hover { background: #16181c; transform: scale(1.06); }
+.xc-fab:hover { background: #f7f9f9; transform: scale(1.06); }
 .xc-fab:active { transform: scale(0.96); }
 
 .xc-panel {
@@ -34,11 +35,11 @@ export const CSS_TEXT = `
   width: 360px;
   display: flex;
   flex-direction: column;
-  background: #000;
-  color: #e7e9ea;
+  background: #ffffff;
+  color: #0f1419;
   border-radius: 16px;
-  border: 1px solid #2f3336;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.75);
+  border: 1px solid #eff3f4;
+  box-shadow: 0 12px 40px rgba(15, 20, 25, 0.16);
   overflow: hidden;
 }
 
@@ -47,35 +48,35 @@ export const CSS_TEXT = `
   align-items: center;
   gap: 8px;
   padding: 14px 16px;
-  border-bottom: 1px solid #2f3336;
+  border-bottom: 1px solid #eff3f4;
   flex-shrink: 0;
 }
 .xc-logo {
   width: 26px; height: 26px; border-radius: 8px;
-  background: #e7e9ea;
-  color: #000; font-size: 14px; line-height: 26px; text-align: center;
+  background: #0f1419;
+  color: #ffffff; font-size: 14px; line-height: 26px; text-align: center;
   flex-shrink: 0;
 }
-.xc-title { font-size: 15px; font-weight: 700; flex: 1; color: #e7e9ea; }
+.xc-title { font-size: 15px; font-weight: 700; flex: 1; color: #0f1419; }
 .xc-close {
   border: none; background: transparent; cursor: pointer;
-  font-size: 16px; color: #71767b; padding: 4px 8px; border-radius: 9999px;
+  font-size: 16px; color: #536471; padding: 4px 8px; border-radius: 9999px;
 }
-.xc-close:hover { background: #16181c; color: #e7e9ea; }
+.xc-close:hover { background: #f7f9f9; color: #0f1419; }
 
 .xc-body { flex: 1; overflow-y: auto; padding: 12px 16px 16px; }
 .xc-body::-webkit-scrollbar { width: 8px; }
-.xc-body::-webkit-scrollbar-thumb { background: #2f3336; border-radius: 4px; }
+.xc-body::-webkit-scrollbar-thumb { background: #cfd9de; border-radius: 4px; }
 
 .xc-tweet-card {
-  background: #16181c;
-  border: 1px solid #2f3336;
+  background: #f7f9f9;
+  border: 1px solid #eff3f4;
   border-radius: 12px;
   padding: 10px 12px;
   margin-bottom: 12px;
 }
-.xc-tweet-author { font-size: 12px; font-weight: 700; color: #e7e9ea; margin-bottom: 4px; }
-.xc-tweet-text { font-size: 13px; line-height: 1.5; color: #71767b; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.xc-tweet-author { font-size: 12px; font-weight: 700; color: #0f1419; margin-bottom: 4px; }
+.xc-tweet-text { font-size: 13px; line-height: 1.5; color: #536471; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
 .xc-generate-btn {
   width: 100%;
@@ -84,47 +85,47 @@ export const CSS_TEXT = `
   padding: 10px 0;
   font-size: 14px;
   font-weight: 700;
-  color: #000;
+  color: #ffffff;
   cursor: pointer;
-  background: #e7e9ea;
+  background: #0f1419;
   transition: background 0.15s ease, opacity 0.15s ease;
 }
-.xc-generate-btn:hover { background: #d7dbdc; }
+.xc-generate-btn:hover { background: #272c30; }
 .xc-generate-btn:disabled { opacity: 0.4; cursor: default; }
 
 .xc-empty, .xc-error {
   text-align: center;
   font-size: 13px;
-  color: #71767b;
+  color: #8b98a5;
   padding: 20px 8px;
   line-height: 1.6;
 }
 .xc-error { color: #f4212e; }
 
 .xc-card {
-  border: 1px solid #2f3336;
+  border: 1px solid #eff3f4;
   border-radius: 12px;
   padding: 10px 12px;
   margin-top: 10px;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
-.xc-card:hover { background: #16181c; border-color: #536471; }
+.xc-card:hover { background: #f7f9f9; border-color: #cfd9de; }
 .xc-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .xc-badge {
   font-size: 11px;
   font-weight: 700;
-  color: #e7e9ea;
-  background: #16181c;
-  border: 1px solid #2f3336;
+  color: #0f1419;
+  background: #f7f9f9;
+  border: 1px solid #eff3f4;
   border-radius: 9999px;
   padding: 2px 10px;
 }
-.xc-card-text { font-size: 13px; line-height: 1.55; color: #e7e9ea; white-space: pre-wrap; word-break: break-word; }
+.xc-card-text { font-size: 13px; line-height: 1.55; color: #0f1419; white-space: pre-wrap; word-break: break-word; }
 .xc-fill-btn {
   margin-top: 8px;
-  border: 1px solid #536471;
-  background: transparent;
-  color: #e7e9ea;
+  border: 1px solid #cfd9de;
+  background: #ffffff;
+  color: #0f1419;
   border-radius: 9999px;
   padding: 5px 14px;
   font-size: 12px;
@@ -132,17 +133,17 @@ export const CSS_TEXT = `
   cursor: pointer;
   transition: all 0.15s ease;
 }
-.xc-fill-btn:hover { background: #e7e9ea; border-color: #e7e9ea; color: #000; }
-.xc-fill-btn.ok { border-color: #e7e9ea; color: #e7e9ea; background: #16181c; }
+.xc-fill-btn:hover { background: #0f1419; border-color: #0f1419; color: #ffffff; }
+.xc-fill-btn.ok { border-color: #0f1419; color: #ffffff; background: #0f1419; }
 
 .xc-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  border-top: 1px solid #2f3336;
+  border-top: 1px solid #eff3f4;
   flex-shrink: 0;
-  background: #000;
+  background: #ffffff;
 }
 .xc-settings-btn {
   display: inline-flex;
@@ -150,7 +151,7 @@ export const CSS_TEXT = `
   gap: 5px;
   border: none;
   background: transparent;
-  color: #71767b;
+  color: #536471;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -158,16 +159,16 @@ export const CSS_TEXT = `
   border-radius: 9999px;
   transition: all 0.15s ease;
 }
-.xc-settings-btn:hover { background: #16181c; color: #e7e9ea; }
-.xc-footer-hint { font-size: 11px; color: #536471; }
+.xc-settings-btn:hover { background: #f7f9f9; color: #0f1419; }
+.xc-footer-hint { font-size: 11px; color: #8b98a5; }
 
 .xc-toast {
   position: absolute;
   left: 50%;
   bottom: 56px;
   transform: translateX(-50%);
-  background: #e7e9ea;
-  color: #000;
+  background: #0f1419;
+  color: #ffffff;
   font-size: 12px;
   font-weight: 600;
   border-radius: 9999px;
@@ -181,8 +182,8 @@ export const CSS_TEXT = `
 .xc-spin {
   display: inline-block;
   width: 14px; height: 14px;
-  border: 2px solid rgba(0, 0, 0, 0.25);
-  border-top-color: #000;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
   border-radius: 50%;
   vertical-align: -2px;
   margin-right: 6px;
