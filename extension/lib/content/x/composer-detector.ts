@@ -48,7 +48,10 @@ export function findPostComposer(): HTMLElement | null {
   if (visible.length === 0) return null;
 
   const notReply = visible.filter((el) => !looksLikeReplyBox(el));
-  const pool = notReply.length > 0 ? notReply : visible;
+  // 页面上只剩回复框时直接放弃：宁可提示用户先打开发帖框，
+  // 也不能把"发帖草稿"悄悄写进回复框（那就是回复，不是发帖了）
+  if (notReply.length === 0) return null;
+  const pool = notReply;
 
   const inDialog = pool.find((el) => el.closest('[role="dialog"]'));
   if (inDialog) return inDialog;

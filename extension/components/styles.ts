@@ -157,7 +157,15 @@ export const CSS_TEXT = `
   line-height: 1.5;
   outline: none;
   transition: border-color 0.15s ease;
+  /* 多行输入：宽度固定，高度随文字增长（上限 132px，超出后内部滚动） */
+  resize: none;
+  overflow-y: auto;
+  min-height: 40px;
+  max-height: 132px;
+  display: block;
 }
+.xc-intent::-webkit-scrollbar { width: 8px; }
+.xc-intent::-webkit-scrollbar-thumb { background: #cfd9de; border-radius: 4px; }
 .xc-intent::placeholder { color: #8b98a5; }
 .xc-intent:focus { border-color: #0f1419; }
 

@@ -59,6 +59,9 @@ function groupByStyle(replies: ReplyCandidate[]): Array<{ style: string; items: 
 export function App() {
   const [tweet, setTweet] = useState<TweetContext | null>(null);
   const [mode, setMode] = useState<CopilotMode>('reply');
+  // mode 同时存 ref：runGenerate 读 ref 而不是 state，引用才能保持稳定
+  // （否则切模式会重建 runGenerate → detector effect 重跑 → 初始识别又把模式改回「回复」）
+  const modeRef = useRef<CopilotMode>('reply');
   const [open, setOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [replies, setReplies] = useState<ReplyCandidate[]>([]);
@@ -109,12 +112,18 @@ export function App() {
     return () => browser.storage.onChanged.removeListener(onChanged);
   }, []);
 
+  const applyMode = useCallback((next: CopilotMode) => {
+    modeRef.current = next;
+    setMode(next);
+  }, []);
+
   // 生成候选（流式：候选一到就先渲染；手动与自动触发共用；回复 / 发帖两种模式）
   const runGenerate = useCallback(
     async (target: TweetContext | null, auto: boolean, intentText = '') => {
       const cleanIntent = intentText.trim();
+      const currentMode = modeRef.current;
       // 缓存键带上模式：同一条推文的回复结果与发帖草稿不能混
-      const key = cacheKey(mode, target?.id, cleanIntent);
+      const key = cacheKey(currentMode, target?.id, cleanIntent);
 
       // 缓存只用于「自动弹出时避免重复请求」。
       // 手动点「生成回复 / 重新生成 / 按这个想法生成」一律真发请求 ——
@@ -134,7 +143,8 @@ export function App() {
       setProgress(undefined);
       setGenerating(true);
       setError(undefined);
-      if (auto) setToast(mode === 'post' ? '正在为你起草帖子……' : '检测到新 Tweet，正在自动生成回复……');
+      if (auto)
+        setToast(currentMode === 'post' ? '正在为你起草帖子……' : '检测到新 Tweet，正在自动生成回复……');
 
       const port = browser.runtime.connect({ name: GENERATE_PORT });
       activePortRef.current = port;
@@ -163,7 +173,7 @@ export function App() {
           setReplies(msg.replies);
           cacheRef.current.set(key, msg.replies);
           if (msg.timing) setTiming(msg.timing);
-          if (auto) setToast(mode === 'post' ? '帖子草稿已生成' : '回复已生成');
+          if (auto) setToast(currentMode === 'post' ? '帖子草稿已生成' : '回复已生成');
           setGenerating(false);
           port.disconnect();
         } else if (msg.type === 'error') {
@@ -184,14 +194,14 @@ export function App() {
       });
 
       const options: Record<string, unknown> = {
-        mode,
+        mode: currentMode,
         intent: cleanIntent || undefined,
       };
       // 发帖模式额外带上时间线语境（当前页面互动最高的几条）
-      if (mode === 'post') options.contextTweets = collectTimelineTweets(5);
+      if (currentMode === 'post') options.contextTweets = collectTimelineTweets(5);
       port.postMessage({ tweet: target, options });
     },
-    [mode]
+    []
   );
 
   // 取消在途生成（关闭 Modal / 离开 Tweet 时调用）
@@ -219,10 +229,10 @@ export function App() {
         setReplies([]);
         setOpen(false);
         // 时间线上没有具体推文时，面板默认进发帖模式
-        setMode('post');
+        applyMode('post');
         return;
       }
-      setMode('reply');
+      applyMode('reply');
       const cached = cacheRef.current.get(cacheKey('reply', t.id, ''));
       setReplies(cached ?? []);
       setOpen(true);
@@ -232,7 +242,7 @@ export function App() {
       }
     });
     return unobserve;
-  }, [runGenerate, cancelGeneration]);
+  }, [runGenerate, cancelGeneration, applyMode]);
 
   useEffect(() => {
     if (!toast) return;
@@ -283,15 +293,15 @@ export function App() {
   /** 切换模式：清掉上一模式的结果，避免回复候选与发帖草稿混在一起 */
   const changeMode = useCallback(
     (next: CopilotMode) => {
-      if (next === mode) return;
-      setMode(next);
+      if (next === modeRef.current) return;
+      applyMode(next);
       setReplies([]);
       setFilledId(null);
       setError(undefined);
       setTiming(undefined);
       setProgress(undefined);
     },
-    [mode]
+    [applyMode]
   );
 
   const openSettings = useCallback(async () => {
@@ -358,19 +368,27 @@ export function App() {
         ) : null}
 
         {(tweet || mode === 'post') && (
-          <input
+          <textarea
             className="xc-intent"
-            type="text"
+            rows={1}
             value={intent}
-            maxLength={200}
+            maxLength={300}
             placeholder={
               mode === 'post'
                 ? '想发点什么？（可选，例如：AI 工具真正的成本在落地）'
                 : '想说什么？（可选，例如：他这套逻辑忽略了汇率）'
             }
-            onChange={(e) => setIntent(e.target.value)}
+            onChange={(e) => {
+              setIntent(e.target.value);
+              // 高度随内容增长（有上限），长文字不再被挤到看不见
+              const el = e.target as HTMLTextAreaElement;
+              el.style.height = 'auto';
+              el.style.height = Math.min(el.scrollHeight, 132) + 'px';
+            }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !generating && (tweet || mode === 'post')) {
+              // Enter 直接生成；Shift+Enter 换行
+              if (e.key === 'Enter' && !e.shiftKey && !generating && (tweet || mode === 'post')) {
+                e.preventDefault();
                 void runGenerate(tweet, false, intent);
               }
             }}
