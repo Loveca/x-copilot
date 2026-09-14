@@ -72,6 +72,8 @@ export function App() {
   // mode 同时存 ref：runGenerate 读 ref 而不是 state，引用才能保持稳定
   // （否则切模式会重建 runGenerate → detector effect 重跑 → 初始识别又把模式改回「回复」）
   const modeRef = useRef<CopilotMode>('reply');
+  // tweet 同时存 ref：焦点监听要判断「是否在详情页/回复弹窗」来避免抢回复模式的面板
+  const tweetRef = useRef<TweetContext | null>(null);
   const [open, setOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [replies, setReplies] = useState<ReplyCandidate[]>([]);
@@ -229,6 +231,7 @@ export function App() {
   useEffect(() => {
     const detector = new TweetDetector();
     const unobserve = detector.observe((t) => {
+      tweetRef.current = t;
       setTweet(t);
       setError(undefined);
       setToast(undefined);
@@ -256,6 +259,24 @@ export function App() {
     });
     return unobserve;
   }, [runGenerate, cancelGeneration, applyMode]);
+
+  // 发帖入口自动弹出面板：聚焦到「主发帖框」（首页内联框 / 点右侧「发帖」按钮打开的弹窗框，且不是回复框）时，
+  // 自动打开面板并切到发帖模式（不自动生成，等用户手动点）。详情页/回复弹窗（tweetRef 有值）下不抢回复模式。
+  useEffect(() => {
+    const handler = (e: FocusEvent) => {
+      const el = e.target as Element | null;
+      if (!el) return;
+      if (tweetRef.current) return; // 详情页/回复弹窗：回复框聚焦不触发，交给回复模式
+      const composer = findPostComposer();
+      if (!composer) return;
+      if (composer === el || composer.contains(el)) {
+        applyMode('post');
+        setOpen(true);
+      }
+    };
+    document.body.addEventListener('focusin', handler, true);
+    return () => document.body.removeEventListener('focusin', handler, true);
+  }, [applyMode]);
 
   useEffect(() => {
     if (!toast) return;
