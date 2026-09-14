@@ -2,8 +2,10 @@
 
 ## 技术栈定案（详见 docs/ARCHITECTURE.md）
 - WXT 0.19.x + React 18 + TS；悬浮球 + 注入式 Shadow DOM Panel（不用 chrome.sidePanel）
-- LLM：DeepSeek，OpenAI 兼容协议，默认模型 deepseek-flash（deepseek-v4-pro 为备选）；请求只从 background SW 发
-- ⚠️ **DeepSeek V4 思考模式默认开启且 `reasoning_effort=high`** → 会在正文前先流一大段 `reasoning_content`。本项目请求体固定带 `thinking:{type:'disabled'}`（可用设置页「深度思考」开回）。这是延迟问题最大的一颗雷，别漏
+- LLM：**可切换服务商**（设置页「模型配置 → 服务商」）——DeepSeek 官方（默认 `deepseek-flash`） / Google Gemini（`gemini-flash-lite-latest`，有免费额度） / 自定义；请求只从 background SW 发
+- ⚠️ **思考模式参数必须按服务商分派**（`openai-compat.ts: thinkingParams()`）：DeepSeek 发 `thinking:{type}`；Gemini 发 `reasoning_effort`（关=`minimal`，**不能用 `none`，Gemini 3 系列会 400**）；其他服务商不发扩展参数。遇 400 会自动去掉参数重试一次
+- ⚠️ **新增服务商必须同步 `wxt.config.ts` 的 host_permissions**，否则 background 的 fetch 会被 CORS 拦掉（Gemini 的域名已加）
+- ⚠️ **DeepSeek / Gemini 的思考模式默认都开启** → 正文前会先流一大段思维链。本项目默认关闭（设置页「深度思考」可开回）。这是延迟问题最大的一颗雷，别漏
 - 红线：绝不自动发送/点赞/关注；API key 只存 chrome.storage.local
 
 ## 环境坑（长期有效）
@@ -24,7 +26,8 @@
 
 ## 设置页架构（扩展预留）
 - Options 页为**左侧导航 + 右侧内容**分区结构（`public/options.html` + `public/options.js`，静态实现，无构建）
-- 现有分区（命名要直白，用户明确要求）：**模型配置**（API Key / 模型 / Base URL / 深度思考开关，开关即时保存） / **回复风格** / **自动生成** / **插件信息**
+- 现有分区（命名要直白，用户明确要求）：**模型配置**（服务商下拉 / API Key / 模型 / Base URL / 深度思考开关，开关即时保存） / **回复风格** / **自动生成** / **插件信息**
+- 服务商预设表在 `public/options.js` 顶部（`PROVIDERS`），判定口径要与 `lib/llm/openai-compat.ts` 的 `detectProvider()` 保持一致；`llmConfig.apiKeys` 按归一化 baseUrl 记住各家的 Key，切换时自动回填
 - 回复风格可配置：`uiConfig.styles: StyleConfig[]`（key/label/desc/enabled/count，顺序即候选顺序），设置页支持拖拽排序、每种 1-3 条、启用开关、恢复默认；生成时 prompt 按顺序+数量输出，count 上限 3、总数上限 10；风格变更会清空 Panel 会话缓存
 - **意图输入框**（已做）：Panel 内可选输入框，用户填「我想说什么」→ `options.intent` 透传到 prompt（优先块，要求不得原样引用、不得增添无关事实，上限 300 字）；缓存键为 `tweetId::intent`，带/不带意图结果共存；切 Tweet 时清空输入
 - **流式生成**（已做）：输出格式为 **NDJSON**（每行一个 JSON 对象），content script 用 `runtime.connect(GENERATE_PORT)` 长连接，background 边收边 `postMessage({type:'partial'})`，面板逐条渲染、可先填；端口名常量在 `lib/config.ts`（background 与 content 共用）；非流式路径保留兜底；超时 60s
