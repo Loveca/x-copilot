@@ -14,6 +14,11 @@
 - 先方案/选项确认再动手；对输出质量要求高（视觉精美、可直接用）。
 - 沟通直接，反馈激烈时快速迭代而非辩解。
 
+## UI 主题（已定）
+- 采用 X 暗色主题色板：背景 #000、卡片/悬停 #16181c、描边 #2f3336、主文字 #e7e9ea、次级 #71767b、提示 #536471、错误 #f4212e
+- 主操作按钮 = 白底黑字（对齐 X 的 Post 按钮）；悬浮球为黑底白字 + #2f3336 描边
+- 样式集中在 `extension/components/styles.ts`（Shadow DOM 内联 CSS）；Options 页样式在 `extension/public/options.html`，两处需同步改
+
 ## 仓库约定
 - Git 身份：Loveca <Loveca@users.noreply.github.com>（GitHub 用户名 Loveca），已写入本仓库 local config；历史提交已批量重写为该身份。
 - 远端：origin = **git@github.com:Loveca/x-copilot.git（SSH）**，master 已跟踪。
