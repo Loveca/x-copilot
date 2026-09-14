@@ -166,7 +166,6 @@ export const CSS_TEXT = `
   transition: all 0.15s ease;
 }
 .xc-settings-btn:hover { background: #f7f9f9; color: #0f1419; }
-.xc-footer-hint { font-size: 11px; color: #8b98a5; }
 
 .xc-toast {
   position: absolute;

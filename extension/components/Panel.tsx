@@ -31,7 +31,6 @@ export function Panel({ open, onClose, onOpenSettings, children }: Props) {
           </svg>
           <span>设置</span>
         </button>
-        <span className="xc-footer-hint">只填入，不自动发送</span>
       </div>
     </div>
   );
