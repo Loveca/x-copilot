@@ -2,6 +2,29 @@
 
 > 需求来源：`PROJECT.md` §22（仓库根目录）。技术选型见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
 
+## 0. 进度表（2026-09-15 冻结）
+
+**当前状态：暂停**，转向 Feed Cleaner（PROJECT.md §25）。回来时从 M2 继续。
+
+| 里程碑 | 内容 | 状态 |
+|---|---|---|
+| **M0** | Spike：主发帖框检测 + 写入 + X 认账验证 | ✅ 通过（首页时间线、弹窗内两种变体都 OK，Post 按钮正常激活） |
+| **M1** | 模式切换 + 三输入源 + 发帖风格（内置默认）+ 发帖 Prompt + 填入主发帖框 | ✅ 完成 |
+| **M2** | 设置页「发帖风格」分区（排序 / 数量 / 开关） | ⬜ 待做（当前用内置默认 5 种各 1 条） |
+| M3 | 高互动 Tweet 抓取口径收紧（只取关注的人？取几条？可开关？） | ⬜ 待做 |
+| — | 润色草稿 / 完整 Thread 生成 | ❌ 明确不做（不在 spec 内，用户已决定） |
+
+**已验证可用**：首页时间线发帖框写入、弹窗内发帖框写入、长文本输入框随内容增高、模式切换不回弹。
+
+**已知限制（有意保留）**：
+- 已识别到具体推文（详情页 / 回复弹窗）时「发帖」置灰且点击无反应——详情页没有发帖入口。若将来能自动打开 X 的发帖弹窗可放开
+- 发帖风格仍为内置默认，不可配置（M2）
+- 只有回复框可见时 `findPostComposer()` 返回 null，不会用回复框凑数
+
+**回来继续时的入口**：`components/App.tsx`（mode / modeRef / runGenerate）、`lib/llm/openai-compat.ts`（`buildPostPrompt` / `resolveGeneration`）、`lib/config.ts`（`DEFAULT_POST_STYLES` / `activePostStyles`）。
+
+---
+
 ## 1. 需求原文（PROJECT.md §22）
 
 ```text
