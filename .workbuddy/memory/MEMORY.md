@@ -22,7 +22,7 @@
 
 ## 设置页架构（扩展预留）
 - Options 页为**左侧导航 + 右侧内容**分区结构（`public/options.html` + `public/options.js`，静态实现，无构建）
-- 现有分区：常规（LLM 配置）/ 交互（自动生成开关）/ 关于（版本、仓库、数据处理）
+- 现有分区（命名要直白，用户明确要求）：**模型配置**（LLM 配置）/ **自动生成**（自动生成开关）/ **插件信息**（版本、仓库、数据处理）
 - 存储分键：`llmConfig`（API Key/模型/BaseURL）、`uiConfig`（交互类，当前仅 autoGenerate）
 - 新增设置项的流程：types 里加字段 → lib/config.ts 补默认值 → options 页加 UI → content script 用 `storage.onChanged` 订阅即时生效
 - 后续规划：主题色切换、登录、统计面板
