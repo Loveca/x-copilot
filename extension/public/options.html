@@ -170,28 +170,37 @@
     }
     .style-row.disabled { background: #f7f9f9; }
 
+    /* 排序按钮：与数量步进器同一种容器结构（已验证可用的控件形态） */
     .order-buttons {
       display: flex;
-      flex-direction: column;
-      gap: 2px;
+      align-items: center;
+      border: 1px solid #cfd9de;
+      border-radius: 9999px;
+      overflow: hidden;
       flex-shrink: 0;
     }
     .order-buttons button {
-      width: 24px;
-      height: 17px;
-      padding: 0;
-      border: 1px solid #cfd9de;
-      border-radius: 6px;
+      width: 30px;
+      height: 28px;
+      border: none;
       background: #ffffff;
       color: #0f1419;
+      font-size: 15px;
+      line-height: 1;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       font-family: inherit;
+      padding: 0;
     }
-    .order-buttons button:hover:not(:disabled) { background: #f7f9f9; }
-    .order-buttons button:disabled { color: #cfd9de; border-color: #eff3f4; cursor: default; }
+    .order-buttons button + button { border-left: 1px solid #cfd9de; }
+    .order-buttons button:hover:not(.is-disabled) { background: #f7f9f9; }
+    .order-buttons button.is-disabled { color: #cfd9de; cursor: default; }
+
+    .debug-line {
+      font-size: 12px;
+      color: #8b98a5;
+      margin-top: 10px;
+      font-variant-numeric: tabular-nums;
+    }
 
     .style-main { flex: 1; min-width: 0; }
     .style-label { font-size: 13px; font-weight: 700; }
@@ -321,6 +330,7 @@
         </div>
         <button class="btn" id="save-styles">保存</button>
         <div class="status" id="status-styles"></div>
+        <div class="debug-line" id="debug-line">最后操作：—</div>
       </div>
     </section>
 

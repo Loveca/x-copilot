@@ -113,16 +113,26 @@
   var $total = document.getElementById('style-total');
   var $statusStyles = document.getElementById('status-styles');
 
-  var SVG_UP = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>';
-  var SVG_DOWN = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+  var SVG_UP = '↑';
+  var SVG_DOWN = '↓';
 
-  function moveStyle(from, to) {
-    console.debug('[X Copilot options] moveStyle', from, '->', to);
+  var $debugLine = document.getElementById('debug-line');
+
+  function logAction(text) {
+    console.debug('[X Copilot options]', text);
+    if ($debugLine) {
+      $debugLine.textContent =
+        '最后操作：' + text + ' · ' + new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    }
+  }
+
+  function moveStyle(from, to, label) {
+    logAction(label + ' ' + (from + 1) + ' → ' + (to + 1));
     if (to < 0 || to >= uiState.styles.length) return;
     var moved = uiState.styles.splice(from, 1)[0];
     uiState.styles.splice(to, 0, moved);
     renderStyles();
-    persistStyles('move');
+    persistStyles(label);
   }
 
   function renderStyles() {
@@ -132,23 +142,39 @@
       row.className = 'style-row' + (style.enabled ? '' : ' disabled');
       row.setAttribute('data-index', String(i));
 
-      // 上下箭头：调整顺序（比拖拽更稳、无手势依赖）
+      // 上下箭头：调整顺序（纯文字按钮 + 与数量步进器同款容器，避免控件形态差异）
       var order = document.createElement('div');
       order.className = 'order-buttons';
+
+      var canUp = i > 0;
+      var canDown = i < uiState.styles.length - 1;
+
       var up = document.createElement('button');
-      up.innerHTML = SVG_UP;
-      up.title = '上移';
-      up.disabled = i === 0;
+      up.type = 'button';
+      up.textContent = SVG_UP;
+      up.title = canUp ? '上移' : '已在最前';
+      if (!canUp) up.className = 'is-disabled';
       up.addEventListener('click', function () {
-        moveStyle(i, i - 1);
+        if (!canUp) {
+          logAction('上移（已在最前，未执行）');
+          return;
+        }
+        moveStyle(i, i - 1, '上移');
       });
+
       var down = document.createElement('button');
-      down.innerHTML = SVG_DOWN;
-      down.title = '下移';
-      down.disabled = i === uiState.styles.length - 1;
+      down.type = 'button';
+      down.textContent = SVG_DOWN;
+      down.title = canDown ? '下移' : '已在最后';
+      if (!canDown) down.className = 'is-disabled';
       down.addEventListener('click', function () {
-        moveStyle(i, i + 1);
+        if (!canDown) {
+          logAction('下移（已在最后，未执行）');
+          return;
+        }
+        moveStyle(i, i + 1, '下移');
       });
+
       order.appendChild(up);
       order.appendChild(down);
 
@@ -217,13 +243,16 @@
 
   function persistStyles(reason) {
     var enabledTotal = totalCount();
+    var manual = reason === 'manual';
     saveUI().then(function () {
-      console.debug('[X Copilot options] styles saved', reason || '', clone(uiState.styles));
+      logAction('已' + (manual ? '手动' : '自动') + '保存（' + uiState.styles.length + ' 项）');
       setStatus(
         $statusStyles,
         enabledTotal === 0
           ? '已保存。注意：当前没有任何启用的风格，将无法生成候选。'
-          : '已保存，下一条 Tweet 起按新配置生成。',
+          : manual
+            ? '已手动保存'
+            : '已自动保存，下一条 Tweet 起按新配置生成。',
         enabledTotal !== 0
       );
     }).catch(function () {
