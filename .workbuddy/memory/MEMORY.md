@@ -35,6 +35,12 @@
 - 新增设置项的流程：types 里加字段 → lib/config.ts 补默认值 → options 页加 UI → content script 用 `storage.onChanged` 订阅即时生效
 - 后续规划：主题色切换、登录、统计面板
 
+## 文档索引
+- `docs/PROJECT.md`：原始产品需求（保留"评论"表述，未随用词迁移改动）
+- `docs/ARCHITECTURE.md`：技术选型与决策 D1–D6
+- `docs/REPLY_MODULE.md`：**回复生成模块功能全景**（触发/输入/风格/生成/展示/填入/缓存/待办），新增功能后需同步更新
+- `docs/TODO.md`：未解决 bug 与排查记录
+
 ## 仓库约定
 - Git 身份：Loveca <Loveca@users.noreply.github.com>（GitHub 用户名 Loveca），已写入本仓库 local config；历史提交已批量重写为该身份。
 - 远端：origin = **git@github.com:Loveca/x-copilot.git（SSH）**，master 已跟踪。
