@@ -84,7 +84,8 @@ export const CSS_TEXT = `
   transition: background 0.15s ease, color 0.15s ease;
 }
 .xc-mode-btn + .xc-mode-btn { border-left: 1px solid #cfd9de; }
-.xc-mode-btn:hover { background: #f7f9f9; color: #0f1419; }
+.xc-mode-btn:hover:not(:disabled) { background: #f7f9f9; color: #0f1419; }
+.xc-mode-btn:disabled { color: #cfd9de; cursor: default; }
 .xc-mode-btn.active { background: #0f1419; color: #ffffff; }
 
 .xc-close {

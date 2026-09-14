@@ -75,6 +75,7 @@ export function App() {
   // 是否显示耗时/字数等诊断信息（设置页「开发者选项」开关，默认关）
   const [debugTiming, setDebugTiming] = useState(DEFAULT_UI_CONFIG.debugTiming);
   const genStartRef = useRef(0);
+  const intentRef = useRef<HTMLTextAreaElement | null>(null);
   const cacheRef = useRef<Map<string, ReplyCandidate[]>>(new Map());
   // 生成序号：生成过程中切换 Tweet 时，旧结果作废，避免错挂到新 Tweet
   const genSeqRef = useRef(0);
@@ -250,6 +251,15 @@ export function App() {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  // 意图输入框高度随内容增长。放在 effect 里而不是只靠 onChange：
+  // 切换模式 / 重新挂载时已有的长文本也要立刻撑开，不能被压回一行
+  useEffect(() => {
+    const el = intentRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 132) + 'px';
+  }, [intent, mode]);
+
   // 生成中自行走秒：即使服务端长时间没有任何分片，界面也在动，不会看着像卡死
   useEffect(() => {
     if (!generating) return;
@@ -294,6 +304,8 @@ export function App() {
   const changeMode = useCallback(
     (next: CopilotMode) => {
       if (next === modeRef.current) return;
+      // 详情页 / 回复弹窗（已识别到具体推文）暂不支持发帖：直接无反应
+      if (next === 'post' && tweet) return;
       applyMode(next);
       setReplies([]);
       setFilledId(null);
@@ -301,7 +313,7 @@ export function App() {
       setTiming(undefined);
       setProgress(undefined);
     },
-    [applyMode]
+    [applyMode, tweet]
   );
 
   const openSettings = useCallback(async () => {
@@ -348,6 +360,7 @@ export function App() {
         onOpenSettings={openSettings}
         mode={mode}
         onModeChange={changeMode}
+        postDisabled={!!tweet}
       >
         {tweet ? (
           <div className="xc-tweet-card">
@@ -369,22 +382,13 @@ export function App() {
 
         {(tweet || mode === 'post') && (
           <textarea
+            ref={intentRef}
             className="xc-intent"
             rows={1}
             value={intent}
             maxLength={300}
-            placeholder={
-              mode === 'post'
-                ? '想发点什么？（可选，例如：AI 工具真正的成本在落地）'
-                : '想说什么？（可选，例如：他这套逻辑忽略了汇率）'
-            }
-            onChange={(e) => {
-              setIntent(e.target.value);
-              // 高度随内容增长（有上限），长文字不再被挤到看不见
-              const el = e.target as HTMLTextAreaElement;
-              el.style.height = 'auto';
-              el.style.height = Math.min(el.scrollHeight, 132) + 'px';
-            }}
+            placeholder={mode === 'post' ? '想发点什么？（可选，一两句话）' : '想说什么？（可选，一句话）'}
+            onChange={(e) => setIntent(e.target.value)}
             onKeyDown={(e) => {
               // Enter 直接生成；Shift+Enter 换行
               if (e.key === 'Enter' && !e.shiftKey && !generating && (tweet || mode === 'post')) {

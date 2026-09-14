@@ -8,10 +8,20 @@ interface Props {
   onOpenSettings: () => void;
   mode: CopilotMode;
   onModeChange: (mode: CopilotMode) => void;
+  /** 当前页面已识别到具体推文（详情页 / 回复弹窗）时，发帖不可用 */
+  postDisabled?: boolean;
   children: ReactNode;
 }
 
-export function Panel({ open, onClose, onOpenSettings, mode, onModeChange, children }: Props) {
+export function Panel({
+  open,
+  onClose,
+  onOpenSettings,
+  mode,
+  onModeChange,
+  postDisabled = false,
+  children,
+}: Props) {
   if (!open) return null;
   return (
     <div className="xc-panel">
@@ -32,9 +42,14 @@ export function Panel({ open, onClose, onOpenSettings, mode, onModeChange, child
             type="button"
             role="tab"
             aria-selected={mode === 'post'}
+            disabled={postDisabled}
             className={'xc-mode-btn' + (mode === 'post' ? ' active' : '')}
             onClick={() => onModeChange('post')}
-            title="写自己的帖子，不是回复"
+            title={
+              postDisabled
+                ? '在帖子详情页暂不支持发帖，回到首页时间线可用'
+                : '写自己的帖子，不是回复'
+            }
           >
             发帖
           </button>
