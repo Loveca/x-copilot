@@ -95,12 +95,31 @@ export const CSS_TEXT = `
 }
 .xc-error { color: #c0392b; }
 
-.xc-hint {
-  margin-top: 10px;
-  text-align: center;
-  font-size: 11px;
-  color: #a8b3bd;
+.xc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-top: 1px solid #eff1f3;
+  flex-shrink: 0;
+  background: #fbfcfc;
 }
+.xc-settings-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: transparent;
+  color: #8b98a5;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 5px 8px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+.xc-settings-btn:hover { background: #f0f3f4; color: #1d9bf0; }
+.xc-footer-hint { font-size: 11px; color: #a8b3bd; }
 
 .xc-card {
   border: 1px solid #e6e9ec;

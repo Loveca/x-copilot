@@ -75,6 +75,14 @@ export function App() {
     }
   }, [generating, tweet]);
 
+  const openSettings = useCallback(async () => {
+    try {
+      await browser.runtime.sendMessage({ type: 'OPEN_OPTIONS' });
+    } catch {
+      setToast('无法打开设置页，请从 chrome://extensions 找到 X Copilot → 详情 → 扩展程序选项。');
+    }
+  }, []);
+
   const fill = useCallback(
     async (reply: ReplyCandidate) => {
       const composer = findReplyComposer();
@@ -96,7 +104,7 @@ export function App() {
   return (
     <>
       <FloatingButton open={open} onToggle={() => setOpen((v) => !v)} />
-      <Panel open={open} onClose={() => setOpen(false)}>
+      <Panel open={open} onClose={() => setOpen(false)} onOpenSettings={openSettings}>
         {tweet ? (
           <div className="xc-tweet-card">
             <div className="xc-tweet-author">
@@ -130,8 +138,6 @@ export function App() {
         {replies.map((r) => (
           <ReplyCard key={r.id} reply={r} filled={filledIds.has(r.id)} onFill={() => fill(r)} />
         ))}
-
-        <div className="xc-hint">Copilot 只填入内容，绝不自动发送。</div>
 
         {toast && <div className="xc-toast">{toast}</div>}
       </Panel>

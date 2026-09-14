@@ -11,6 +11,12 @@ import { DEFAULT_LLM_CONFIG, LLM_CONFIG_STORAGE_KEY } from '@/lib/config';
 export default defineBackground(() => {
   browser.runtime.onMessage.addListener(async (message: unknown) => {
     const msg = message as { type?: string; tweet?: unknown; options?: unknown };
+
+    if (msg?.type === 'OPEN_OPTIONS') {
+      await browser.runtime.openOptionsPage();
+      return;
+    }
+
     if (msg?.type !== 'GENERATE_REPLIES') return;
 
     const stored = await browser.storage.local.get(LLM_CONFIG_STORAGE_KEY);

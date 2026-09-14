@@ -39,7 +39,7 @@ npm install
 ## 配置 API
 
 1. 在 [DeepSeek 开放平台](https://platform.deepseek.com/) 创建 API Key
-2. 构建完成后，加载插件 → 右键插件图标 → **选项** → 填入 API Key → 保存
+2. 构建完成后，加载插件 → 打开任意 X 页面 → 点击 ✦ 悬浮球 → Panel **左下角「设置」** → 填入 API Key → 保存
 3. （可选）修改模型或 Base URL，默认 `deepseek-flash` / `https://api.deepseek.com/v1`
 
 ## 构建 Extension
@@ -72,7 +72,7 @@ npm run dev       # 开发模式（HMR）
 ## 常见问题
 
 **Q：点击生成提示「尚未配置 API Key」？**
-右键插件图标 → 选项 → 填入 DeepSeek API Key 并保存。
+点击 Panel 左下角「设置」→ 填入 DeepSeek API Key 并保存。
 
 **Q：提示「未找到评论输入框」？**
 先点击 Tweet 下方的 Reply 按钮展开输入框，再点「填入」。
