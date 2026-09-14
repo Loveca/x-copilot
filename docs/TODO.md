@@ -1,5 +1,32 @@
 # TODO
 
+## [BUG] 设置页拖拽排序不生效（已改用上下箭头，拖拽待排查）
+
+**状态**：暂时用上下箭头按钮替代，拖拽逻辑保留问题记录待查。
+
+### 现象
+
+回复风格列表的拖拽排序无任何反应（按住手柄拖动，行不动、不换位、不落盘）。
+
+### 已尝试
+
+1. HTML5 原生 DnD（`draggable` + `dragstart/dragover/drop/dragend`）——完全无反应，怀疑事件被行内表单控件（开关、按钮、checkbox）吞掉。
+2. pointer 事件方案（手柄 `pointerdown` + document `pointermove/pointerup` + 实时换位）——**用户实测仍不生效**。
+
+### 待排查方向
+
+- 是否 `pointerdown` 的 `e.preventDefault()` 阻止了后续事件，或 handle 元素被 `renderStyles()` 重建导致监听丢失
+- 是否 Chrome 扩展 options 页（chrome-extension:// 上下文）对 pointer 事件有额外限制
+- 建议：先加 `console.log` 在 pointerdown/pointermove 里确认事件是否真的触发，再决定是事件层还是重排逻辑的问题
+- 参考实现：也可以完全不依赖拖拽，改成"点击进入排序模式，点击目标位置交换"（无手势依赖，最稳）
+
+### 相关提交
+
+- `f3023a7` 拖拽改用 pointer 事件（未解决）
+- 上下箭头方案为当前的可用实现
+
+---
+
 ## [BUG] 详情页点评论图标会重复触发生成（未解决）
 
 **状态**：待解决。两次修复尝试（32c0441 / 964cffd）均无效，代码已回滚到 32c0441 状态（仅保留 null 确认期，无幂等保护）。

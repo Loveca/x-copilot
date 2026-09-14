@@ -169,21 +169,29 @@
       transition: border-color 0.12s ease, background 0.12s ease;
     }
     .style-row.disabled { background: #f7f9f9; }
-    .style-row.dragging { opacity: 0.5; border-color: #0f1419; }
-    .style-list.dragging-active { user-select: none; }
-    .style-list.dragging-active .style-row { transition: none; }
 
-    .drag-handle {
-      cursor: grab;
-      color: #8b98a5;
+    .order-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
       flex-shrink: 0;
+    }
+    .order-buttons button {
+      width: 24px;
+      height: 17px;
+      padding: 0;
+      border: 1px solid #cfd9de;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #0f1419;
+      cursor: pointer;
       display: flex;
       align-items: center;
-      padding: 2px;
-      border-radius: 4px;
+      justify-content: center;
+      font-family: inherit;
     }
-    .drag-handle:active { cursor: grabbing; }
-    .drag-handle:hover { color: #0f1419; }
+    .order-buttons button:hover:not(:disabled) { background: #f7f9f9; }
+    .order-buttons button:disabled { color: #cfd9de; border-color: #eff3f4; cursor: default; }
 
     .style-main { flex: 1; min-width: 0; }
     .style-label { font-size: 13px; font-weight: 700; }
@@ -303,7 +311,7 @@
     <!-- 回复风格 -->
     <section class="pane" id="pane-styles">
       <h2>回复风格</h2>
-      <p class="pane-desc">拖拽调整候选顺序，设定每种风格的候选数量。生成时严格按此顺序与数量输出。</p>
+      <p class="pane-desc">用上下箭头调整候选顺序，设定每种风格的候选数量。生成时严格按此顺序与数量输出。</p>
 
       <div class="group">
         <div class="style-list" id="style-list"></div>

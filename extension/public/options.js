@@ -108,12 +108,21 @@
     });
   });
 
-  // ---------- 回复风格：拖拽排序 + 数量 + 启用 ----------
+  // ---------- 回复风格：排序（上下箭头）+ 数量 + 启用 ----------
   var $list = document.getElementById('style-list');
   var $total = document.getElementById('style-total');
   var $statusStyles = document.getElementById('status-styles');
 
-  var SVG_HANDLE = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01"/></svg>';
+  var SVG_UP = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>';
+  var SVG_DOWN = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+
+  function moveStyle(from, to) {
+    if (to < 0 || to >= uiState.styles.length) return;
+    var moved = uiState.styles.splice(from, 1)[0];
+    uiState.styles.splice(to, 0, moved);
+    renderStyles();
+    persistStyles();
+  }
 
   function renderStyles() {
     $list.innerHTML = '';
@@ -122,11 +131,25 @@
       row.className = 'style-row' + (style.enabled ? '' : ' disabled');
       row.setAttribute('data-index', String(i));
 
-      var handle = document.createElement('div');
-      handle.className = 'drag-handle';
-      handle.innerHTML = SVG_HANDLE;
-      handle.title = '按住拖动调整顺序';
-      attachDrag(row, handle);
+      // 上下箭头：调整顺序（比拖拽更稳、无手势依赖）
+      var order = document.createElement('div');
+      order.className = 'order-buttons';
+      var up = document.createElement('button');
+      up.innerHTML = SVG_UP;
+      up.title = '上移';
+      up.disabled = i === 0;
+      up.addEventListener('click', function () {
+        moveStyle(i, i - 1);
+      });
+      var down = document.createElement('button');
+      down.innerHTML = SVG_DOWN;
+      down.title = '下移';
+      down.disabled = i === uiState.styles.length - 1;
+      down.addEventListener('click', function () {
+        moveStyle(i, i + 1);
+      });
+      order.appendChild(up);
+      order.appendChild(down);
 
       var main = document.createElement('div');
       main.className = 'style-main';
@@ -181,9 +204,7 @@
         persistStyles();
       });
 
-      // 拖拽排序：用 pointer 事件自行管理（HTML5 原生 DnD 在含表单控件的行里不稳定）
-      // 拖动过程中实时换位，松手后落盘
-      row.appendChild(handle);
+      row.appendChild(order);
       row.appendChild(main);
       row.appendChild(stepper);
       row.appendChild(sw);
@@ -191,63 +212,6 @@
     });
 
     $total.textContent = String(totalCount());
-  }
-
-  function attachDrag(row, handle) {
-    handle.addEventListener('pointerdown', function (e) {
-      e.preventDefault();
-      var startY = e.clientY;
-      var dragging = false;
-      var fromIndex = Number(row.getAttribute('data-index'));
-
-      function currentIndexOfRow() {
-        return Number(row.getAttribute('data-index'));
-      }
-
-      function onMove(ev) {
-        if (!dragging) {
-          if (Math.abs(ev.clientY - startY) < 5) return;
-          dragging = true;
-          $list.classList.add('dragging-active');
-          row.classList.add('dragging');
-        }
-        ev.preventDefault();
-
-        var rows = Array.prototype.slice.call($list.children);
-        var targetIndex = rows.length - 1;
-        for (var i = 0; i < rows.length; i++) {
-          var rect = rows[i].getBoundingClientRect();
-          if (ev.clientY < rect.top + rect.height / 2) {
-            targetIndex = i;
-            break;
-          }
-        }
-
-        var from = currentIndexOfRow();
-        if (targetIndex !== from) {
-          var moved = uiState.styles.splice(from, 1)[0];
-          uiState.styles.splice(targetIndex, 0, moved);
-          renderStyles();
-          var newRow = $list.children[targetIndex];
-          if (newRow) newRow.classList.add('dragging');
-        }
-      }
-
-      function onUp() {
-        document.removeEventListener('pointermove', onMove);
-        document.removeEventListener('pointerup', onUp);
-        document.removeEventListener('pointercancel', onUp);
-        $list.classList.remove('dragging-active');
-        if (dragging) {
-          renderStyles();
-          persistStyles();
-        }
-      }
-
-      document.addEventListener('pointermove', onMove);
-      document.addEventListener('pointerup', onUp);
-      document.addEventListener('pointercancel', onUp);
-    });
   }
 
   function persistStyles() {
