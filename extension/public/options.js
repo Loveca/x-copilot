@@ -117,11 +117,12 @@
   var SVG_DOWN = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
 
   function moveStyle(from, to) {
+    console.debug('[X Copilot options] moveStyle', from, '->', to);
     if (to < 0 || to >= uiState.styles.length) return;
     var moved = uiState.styles.splice(from, 1)[0];
     uiState.styles.splice(to, 0, moved);
     renderStyles();
-    persistStyles();
+    persistStyles('move');
   }
 
   function renderStyles() {
@@ -181,12 +182,12 @@
       minus.addEventListener('click', function () {
         style.count = clampCount(style.count - 1);
         renderStyles();
-        persistStyles();
+        persistStyles('count-');
       });
       plus.addEventListener('click', function () {
         style.count = clampCount(style.count + 1);
         renderStyles();
-        persistStyles();
+        persistStyles('count+');
       });
 
       var sw = document.createElement('label');
@@ -201,22 +202,23 @@
       cb.addEventListener('change', function () {
         style.enabled = cb.checked;
         renderStyles();
-        persistStyles();
+        persistStyles('toggle');
       });
 
-      row.appendChild(order);
       row.appendChild(main);
       row.appendChild(stepper);
       row.appendChild(sw);
+      row.appendChild(order);
       $list.appendChild(row);
     });
 
     $total.textContent = String(totalCount());
   }
 
-  function persistStyles() {
+  function persistStyles(reason) {
     var enabledTotal = totalCount();
     saveUI().then(function () {
+      console.debug('[X Copilot options] styles saved', reason || '', clone(uiState.styles));
       setStatus(
         $statusStyles,
         enabledTotal === 0
@@ -232,7 +234,11 @@
   document.getElementById('reset-styles').addEventListener('click', function () {
     uiState.styles = clone(DEFAULT_STYLES);
     renderStyles();
-    persistStyles();
+    persistStyles('reset');
+  });
+
+  document.getElementById('save-styles').addEventListener('click', function () {
+    persistStyles('manual');
   });
 
   // ---------- 自动生成开关 ----------
