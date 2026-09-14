@@ -28,6 +28,7 @@
 - **意图输入框**（已做）：Panel 内可选输入框，用户填「我想说什么」→ `options.intent` 透传到 prompt（优先块，要求不得原样引用、不得增添无关事实，上限 300 字）；缓存键为 `tweetId::intent`，带/不带意图结果共存；切 Tweet 时清空输入
 - **流式生成**（已做）：输出格式为 **NDJSON**（每行一个 JSON 对象），content script 用 `runtime.connect(GENERATE_PORT)` 长连接，background 边收边 `postMessage({type:'partial'})`，面板逐条渲染、可先填；端口名常量在 `lib/config.ts`（background 与 content 共用）；非流式路径保留兜底；超时 60s
 - 性能设计原则：用户感知的是 **TTFT**，优先做流式/逐条渲染，而非单纯换更快的模型；切模型最多省 1-2s，流式省 4-5s 体感
+- 延迟埋点：provider 统计 ttfbMs / firstCandidateMs / totalMs，经 done 消息回传，面板显示「首个数据 x.xs · 首条 x.xs · 完成 x.xs」（`xc-timing`），排查延迟问题先看这三项
 - 排序交互：设置页风格排序用**每行上下箭头按钮**（可靠、可键盘操作）。拖拽方案试过 HTML5 DnD 与 pointer 事件两次均无效，已放弃拖拽
 - ⚠️ 重要陷阱：`normalizeStyles` 之类"默认值 + 存储值合并"的逻辑**必须保留存储中的顺序**，不能"遍历默认清单按 key 查存储"——后者会静默丢弃用户排的序（踩过，见 docs/TODO.md 已修复条目）
 - config.ts 与静态 options.js 两处都有 normalizeStyles，改一处必须同步另一处
