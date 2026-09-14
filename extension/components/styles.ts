@@ -23,10 +23,16 @@ export const CSS_TEXT = `
   box-shadow: 0 4px 14px rgba(15, 20, 25, 0.18);
   user-select: none;
   touch-action: none;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition: background 0.15s ease, transform 0.18s ease, opacity 0.18s ease;
 }
 .xc-fab:hover { background: #f7f9f9; transform: scale(1.06); }
 .xc-fab:active { transform: scale(0.96); }
+/* Panel 打开时收起悬浮球，避免与面板同时悬浮 */
+.xc-fab.xc-fab-hidden {
+  opacity: 0;
+  transform: scale(0.6);
+  pointer-events: none;
+}
 
 .xc-panel {
   position: fixed;

@@ -58,7 +58,7 @@ export function FloatingButton({ open, onToggle }: Props) {
 
   return (
     <button
-      className="xc-fab"
+      className={`xc-fab${open ? ' xc-fab-hidden' : ''}`}
       style={{ left: pos.x, top: pos.y }}
       title={open ? '关闭 X Copilot' : '打开 X Copilot'}
       onPointerDown={onPointerDown}
