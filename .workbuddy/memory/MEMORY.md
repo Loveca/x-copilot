@@ -16,8 +16,16 @@
 
 ## UI 主题（已定）
 - 采用 **X 浅色主题**色板（用户使用 X 白底黑字）：背景 #fff、卡片/悬停 #f7f9f9、分隔线 #eff3f4、强边框 #cfd9de、主文字 #0f1419、次级 #536471、提示 #8b98a5、错误 #f4212e
-- 主操作按钮 = 黑底白字（对齐 X 浅色模式的 Post 按钮）；悬浮球为白底黑字 + #cfd9de 描边
+- 主操作按钮 = 黑底白字（对齐 X 浅色模式的 Post 按钮）；悬浮球为白底黑字 + #cfd9de 描边，**Panel 打开时悬浮球淡出隐藏**
+- 不再在 UI 上放「只填入/不自动发送」这类免责提示（用户明确要求去掉），红线只保留在文档与 README
 - 样式集中在 `extension/components/styles.ts`（Shadow DOM 内联 CSS）；Options 页样式在 `extension/public/options.html`，两处需同步改
+
+## 设置页架构（扩展预留）
+- Options 页为**左侧导航 + 右侧内容**分区结构（`public/options.html` + `public/options.js`，静态实现，无构建）
+- 现有分区：常规（LLM 配置）/ 交互（自动生成开关）/ 关于（版本、仓库、数据处理）
+- 存储分键：`llmConfig`（API Key/模型/BaseURL）、`uiConfig`（交互类，当前仅 autoGenerate）
+- 新增设置项的流程：types 里加字段 → lib/config.ts 补默认值 → options 页加 UI → content script 用 `storage.onChanged` 订阅即时生效
+- 后续规划：主题色切换、登录、统计面板
 
 ## 仓库约定
 - Git 身份：Loveca <Loveca@users.noreply.github.com>（GitHub 用户名 Loveca），已写入本仓库 local config；历史提交已批量重写为该身份。
