@@ -9,6 +9,8 @@ export interface TweetContext {
   repostCount?: number;
   replyCount?: number;
   quotedTweet?: TweetContext;
+  /** 帖子里的照片附件（已归一化为 pbs.twimg.com 的 small 变体，最多 4 张） */
+  images?: string[];
 }
 
 export interface ReplyCandidate {
@@ -33,6 +35,8 @@ export interface GenerateReplyOptions {
   styles?: StyleConfig[];
   /** 用户想表达的核心观点（可选）。给了就让所有候选围绕它展开 */
   intent?: string;
+  /** 帖子图片，已由 background 取回并编码为 data URL（取不到时为空数组） */
+  imageDataUrls?: string[];
 }
 
 export interface LLMConfig {

@@ -19,6 +19,13 @@ export const X_SELECTORS = {
   replyAction: '[data-testid="reply"]',
   /** 输入框：X 的 composer 是 contenteditable + role=textbox */
   composer: 'div[contenteditable="true"][role="textbox"]',
+  /**
+   * 推文里的照片附件。只在 pbs.twimg.com/media/ 下取，因此天然排除：
+   * - 头像（/profile_images/）
+   * - 视频封面（/amplify_video_thumb/）
+   * - 表情（/emoji/）
+   */
+  photoImage: 'img[src*="pbs.twimg.com/media/"]',
 } as const;
 
 /** 用于识别「回复输入框」的 aria-label / placeholder 关键词 */

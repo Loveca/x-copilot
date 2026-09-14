@@ -11,6 +11,8 @@ export default defineConfig({
       'https://x.com/*',
       'https://api.deepseek.com/*',
       'https://generativelanguage.googleapis.com/*',
+      // 帖子图片（带图生成时由 background 取回转 base64）
+      'https://pbs.twimg.com/*',
     ],
     options_ui: {
       open_in_tab: true,

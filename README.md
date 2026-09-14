@@ -21,7 +21,7 @@ Background service worker（无状态，LLM 请求代理）
 
 - 构建工具链：WXT + Vite + React 18 + TypeScript
 - LLM：可切换服务商 —— DeepSeek 官方（`https://api.deepseek.com/v1`，默认）或 Google Gemini（`https://generativelanguage.googleapis.com/v1beta/openai`，有免费额度）；API Key 只存本机 `chrome.storage.local`
-- 权限最小化：仅 `storage` + `x.com` / `api.deepseek.com` / `generativelanguage.googleapis.com` 三个 host（自定义服务商需自行把域名加进 `wxt.config.ts` 的 host_permissions 后重新构建）
+- 权限最小化：仅 `storage` + `x.com` / `api.deepseek.com` / `generativelanguage.googleapis.com` / `pbs.twimg.com` 四个 host（最后一个用于带图时取帖子图片；自定义服务商需自行把域名加进 `wxt.config.ts` 的 host_permissions 后重新构建）
 
 ## 环境要求
 
@@ -47,7 +47,7 @@ npm install
 | 分区 | 内容 |
 |---|---|
 | 模型配置 | 服务商（DeepSeek / Google Gemini / 自定义）、API Key、模型、API Base URL、深度思考开关（默认关；开启后首条候选会慢十几秒） |
-| 回复风格 | 拖拽排序、每种风格的候选数量与启用开关（生成时严格按此顺序与数量输出） |
+| 回复风格 | 上下箭头排序、每种风格的候选数量与启用开关（生成时严格按此顺序与数量输出） |
 | 自动生成 | 自动生成回复开关（关闭后需手动点击生成） |
 | 插件信息 | 版本、仓库地址、数据处理说明、开发者选项（显示生成耗时信息，默认关） |
 
@@ -104,3 +104,4 @@ npm run dev       # 开发模式（HMR）
 - 不读取、不保存 X 登录 Cookie 或密码
 - 不自动发送 / 点赞 / 关注，不做任何批量账号操作
 - API Key 仅存本机，仅从 background service worker 发起请求
+- **带图生成**：帖子里有照片时，图片会取回并随文字一起发给模型（最多 4 张）。图片可能包含人脸、文字等信息，同样会送到你配置的模型服务商；不需要可换用纯文本模型或反馈给我加开关

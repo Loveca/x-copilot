@@ -20,7 +20,8 @@
       baseUrl: 'https://api.deepseek.com/v1',
       model: 'deepseek-flash',
       models: ['deepseek-flash', 'deepseek-v4-pro'],
-      modelsDesc: '默认 deepseek-flash（快、便宜）；deepseek-v4-pro 更强但更贵更慢。',
+      modelsDesc:
+        '默认 deepseek-flash（即 V4.1 Flash，原生支持图片理解，快且便宜）。注意：deepseek-v4-pro 目前被官方全部路由到 V4.1 Flash 并按 Flash 计费，两者实际是同一个模型。',
       keyPlaceholder: 'sk-...',
       keyDesc:
         '在 <a href="https://platform.deepseek.com/" target="_blank" rel="noreferrer">DeepSeek 开放平台</a> 获取，格式 sk-...',

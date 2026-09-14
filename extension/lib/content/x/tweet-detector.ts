@@ -18,6 +18,37 @@ function parseCount(el: Element | null): number | undefined {
   return match ? Number(match[1]) : undefined;
 }
 
+/** 单条帖子最多带几张图（X 单帖上限就是 4 张） */
+const MAX_TWEET_IMAGES = 4;
+
+/**
+ * 提取本条帖子的照片附件，统一改写成 `?format=jpg&name=small`：
+ * - 统一格式，避免 webp/png 混杂
+ * - small 约 680px，几十 KB，够模型看清又不浪费带宽与 token
+ * 只取本层的图：引用帖的图不算在内（引用帖的正文已进 prompt）。
+ */
+function extractImages(article: Element): string[] {
+  const seen = new Set<string>();
+  const urls: string[] = [];
+
+  const imgs = [...article.querySelectorAll<HTMLImageElement>(X_SELECTORS.photoImage)];
+  for (const img of imgs) {
+    // 位于嵌套 article（引用帖）里的图不属于本条帖子
+    if (img.closest(X_SELECTORS.tweetArticle) !== article) continue;
+
+    const src = img.getAttribute('src') ?? '';
+    const base = src.match(/^https:\/\/pbs\.twimg\.com\/media\/[^?#]+/)?.[0];
+    if (!base) continue;
+
+    const normalized = `${base}?format=jpg&name=small`;
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    urls.push(normalized);
+    if (urls.length >= MAX_TWEET_IMAGES) break;
+  }
+  return urls;
+}
+
 function extractArticle(article: Element, id?: string, handleHint?: string): TweetContext {
   const text =
     article.querySelector(X_SELECTORS.tweetText)?.textContent?.trim() ?? '';

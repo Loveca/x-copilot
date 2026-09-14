@@ -11,6 +11,7 @@ import {
 } from '@/lib/config';
 import type { GenerateReplyOptions, LLMConfig, TweetContext, UIConfig } from '@/types';
 import type { LLMStreamTiming } from '@/lib/llm/provider';
+import { fetchImagesAsDataUrls } from '@/lib/llm/vision';
 
 async function readOptions(
   incoming?: GenerateReplyOptions
@@ -28,6 +29,16 @@ async function readOptions(
     // 回复风格由设置页配置（顺序 / 启用 / 每条数量）
     options: { ...(incoming ?? {}), styles: activeStyles(uiConfig) },
   };
+}
+
+/**
+ * 帖子带图时把图取回来（并行、单张失败即跳过）。
+ * 不做模型白名单：DeepSeek V4.1 Flash 与 Gemini 都原生吃图，
+ * 万一遇到不认图的模型，provider 侧会在 400 时自动降级为纯文本重试。
+ */
+async function collectImages(tweet: TweetContext): Promise<string[]> {
+  if (!tweet?.images?.length) return [];
+  return fetchImagesAsDataUrls(tweet.images);
 }
 
 /**
@@ -54,15 +65,22 @@ export default defineBackground(() => {
         const { config, options } = await readOptions(msg.options);
         if (!config.apiKey) throw new Error('NO_API_KEY');
 
+        const tweet = msg.tweet as TweetContext;
+        const imageDataUrls = await collectImages(tweet);
+
         const provider = new OpenAICompatProvider(config);
         let timing: LLMStreamTiming | undefined;
-        const replies = await provider.generateRepliesStream(msg.tweet as TweetContext, options, {
-          onPartial: (partial) => send({ type: 'partial', replies: partial }),
-          onProgress: (progress) => send({ type: 'progress', progress }),
-          onTiming: (t) => {
-            timing = t;
-          },
-        });
+        const replies = await provider.generateRepliesStream(
+          tweet,
+          { ...options, imageDataUrls },
+          {
+            onPartial: (partial) => send({ type: 'partial', replies: partial }),
+            onProgress: (progress) => send({ type: 'progress', progress }),
+            onTiming: (t) => {
+              timing = t;
+            },
+          }
+        );
         send({ type: 'done', replies, timing });
       } catch (e) {
         send({ type: 'error', message: e instanceof Error ? e.message : String(e) });
@@ -84,7 +102,10 @@ export default defineBackground(() => {
     const { config, options } = await readOptions(msg.options);
     if (!config.apiKey) throw new Error('NO_API_KEY');
 
+    const tweet = msg.tweet as TweetContext;
+    const imageDataUrls = await collectImages(tweet);
+
     const provider = new OpenAICompatProvider(config);
-    return provider.generateReplies(msg.tweet as TweetContext, options);
+    return provider.generateReplies(tweet, { ...options, imageDataUrls });
   });
 });

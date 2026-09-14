@@ -15,7 +15,10 @@
 
 ## 2. 输入侧
 
-- **TweetContext 提取**：正文、作者、@handle、URL、id、时间戳、点赞 / 转推 / 回复数、引用推文（嵌套一层）
+- **TweetContext 提取**：正文、作者、@handle、URL、id、时间戳、点赞 / 转推 / 回复数、引用推文（嵌套一层）、**帖子图片 URL**
+- **帖子图片（自动带）**：抓推文 DOM 里 `pbs.twimg.com/media/` 下的照片附件，最多 4 张，统一归一化成 `?format=jpg&name=small`（约 680px、几十 KB）。
+  只取**本层** article 内的图，因此天然排除头像（`/profile_images/`）、视频封面（`/amplify_video_thumb/`）与引用帖的图。
+  background 并行取回并转成 base64 data URL，作为多模态消息的 `image_url` 内容块发出；单张失败 / 超时（8s）即跳过，不影响文字部分生成
 - **意图输入框**（可选，上限 300 字）：写一句「我想说什么」，所有候选围绕该观点用不同风格表达；回车生成；切换 Tweet 自动清空
 - **语言策略**：跟随原 Tweet 语言（若用户意图本身是另一种语言，按意图语言）
 
@@ -30,7 +33,9 @@
 ## 4. 生成与模型
 
 - **可切换服务商**（设置页「模型配置 → 服务商」）：DeepSeek 官方 / Google Gemini（有免费额度）/ 自定义；切换时自动填入该服务商的 Base URL 与模型，各服务商的 API Key 分别记住、来回切自动回填
-- 思考模式参数**按服务商分派**：DeepSeek 发 `thinking:{type}`，Gemini 发 `reasoning_effort`，其他服务商不发扩展参数。若服务商以 HTTP 400 拒收这些参数，会自动去掉参数重试一次
+- 思考模式参数**按服务商分派**：DeepSeek 发 `thinking:{type}`，Gemini 发 `reasoning_effort`，其他服务商不发扩展参数
+- **HTTP 400 逐级降级重试**：`带图带参 → 去掉图片 → 再去掉扩展参数`。模型是否吃图、服务商是否认扩展参数不能只靠文档判断（DeepSeek V4.1 Flash 与 Gemini 都原生吃图，第三方老模型会 400），而 400 是参数校验失败、不产生 token 费用，所以探测成本极低。学到结论后记进会话级集合，后续请求不再重试
+- Prompt 里对图片有明确约束：图片只作理解上下文的依据，**除非回复本意就在说图，否则不要描述图片**，也不许编造看不到的细节
 - OpenAI 兼容协议；DeepSeek 默认 `deepseek-flash`，Gemini 默认 `gemini-flash-lite-latest`；模型以「预设下拉」或「自定义…」输入两种方式提供，Base URL 可手动改
 - **Gemini 下拉只列免费档实测可用的模型**（2026-09-14 探测）：`gemini-flash-lite-latest`（默认）/ `gemini-3.6-flash` / `gemini-3.5-flash` / `gemini-3.5-flash-lite` / `gemini-3-flash-preview` / `gemini-2.5-flash`。`gemini-flash-latest`、`gemini-pro-latest` 免费档当前不可用（503 / 配额为 0），故不入列；遇到 503 换一个模型即可
 - **思考模式开关的实测影响**（Gemini，同一模型同一内容）：开 = 首字节 7.0s / 首条 7.0s / 完成 8.1s；关 = 1.0s / 1.2s / 2.2s。关闭后与 DeepSeek 同量级（首条 0.8s）
@@ -92,9 +97,10 @@
 |---|---|
 | `components/App.tsx` | 状态机：触发、缓存、分组展示、填入 |
 | `components/ReplyCard.tsx` | 风格卡片（卡内多条候选） |
-| `lib/llm/openai-compat.ts` | Prompt 组装、请求、JSON 解析与映射 |
+| `lib/llm/openai-compat.ts` | Prompt 组装、多模态消息、请求、400 降级重试、JSON 解析与映射 |
+| `lib/llm/vision.ts` | 帖子图片取回并编码为 data URL（并行、失败即跳过） |
 | `lib/llm/provider.ts` | LLMProvider 抽象（换模型不改上层） |
-| `lib/content/x/tweet-detector.ts` | URL 主判 + Modal 兜底 + 变更监听 |
+| `lib/content/x/tweet-detector.ts` | URL 主判 + Modal 兜底 + 变更监听 + 图片提取 |
 | `lib/content/x/composer-detector.ts` | 回复输入框定位 |
 | `lib/content/x/fill.ts` | 替换语义写入（paste 优先，insertText 降级） |
 | `lib/config.ts` | 默认配置、风格归一化（与静态 options 页保持同步） |

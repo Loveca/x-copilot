@@ -7,12 +7,25 @@ import type {
   TweetContext,
 } from '@/types';
 import type { LLMProvider, LLMStreamHandlers } from './provider';
+import { MAX_VISION_IMAGES } from './vision';
 
 const REQUEST_TIMEOUT_MS = 60_000;
 /** 进度回调节流：避免每个 token 都往 content script 推一条消息 */
 const PROGRESS_THROTTLE_MS = 250;
 
-function buildPrompt(context: TweetContext, styles: StyleConfig[], intent?: string): string {
+/**
+ * 会话级能力记忆：某个模型不认图片 / 不认扩展参数时记下来，
+ * 后续请求不再白费一次 400 往返。（Service Worker 被回收后重新探测，代价仅一次失败请求）
+ */
+const visionUnsupported = new Set<string>();
+const providerParamsUnsupported = new Set<string>();
+
+function buildPrompt(
+  context: TweetContext,
+  styles: StyleConfig[],
+  intent?: string,
+  hasImages = false
+): string {
   const total = styles.reduce((sum, s) => sum + s.count, 0);
   const styleLines = styles
     .map((s, i) => `${i + 1}. ${s.label} — ${s.count} 条：${s.desc}`)
@@ -47,6 +60,15 @@ function buildPrompt(context: TweetContext, styles: StyleConfig[], intent?: stri
   if (context.quotedTweet?.text) {
     parts.push(
       `Quoted post by ${context.quotedTweet.author ?? 'unknown'}: ${context.quotedTweet.text}`
+    );
+  }
+
+  if (hasImages) {
+    parts.push(
+      '',
+      'The post also has image(s) attached to this message. Treat them as context for what the post',
+      'is about. Do not describe or caption the image(s) unless that is clearly the point of the',
+      'reply, and never state details you cannot actually see in them.'
     );
   }
   return parts.join('\n');
@@ -283,11 +305,22 @@ export class OpenAICompatProvider implements LLMProvider {
     styles: StyleConfig[],
     intent: string | undefined,
     stream: boolean,
-    includeProviderParams = true
+    includeProviderParams = true,
+    images: string[] = []
   ): string {
+    const prompt = buildPrompt(context, styles, intent, images.length > 0);
+    // 多模态消息：文字 + image_url 内容块（图片只能出现在 user 消息里，这是各家的共同约束）
+    const content =
+      images.length > 0
+        ? [
+            { type: 'text', text: prompt },
+            ...images.map((url) => ({ type: 'image_url', image_url: { url } })),
+          ]
+        : prompt;
+
     return JSON.stringify({
       model: this.config.model,
-      messages: [{ role: 'user', content: buildPrompt(context, styles, intent) }],
+      messages: [{ role: 'user', content }],
       temperature: 1.0,
       ...(includeProviderParams ? this.thinkingParams() : {}),
       stream,
@@ -319,23 +352,53 @@ export class OpenAICompatProvider implements LLMProvider {
   }
 
   /**
-   * 发起请求；若服务商不认扩展参数（HTTP 400）则去掉参数重试一次，
-   * 保证换服务商时不会因为一个参数整条链路不可用。
+   * 发起请求，并在 HTTP 400 时**逐级降级**重试：
+   *   带图带参 → 去掉图片 → 再去掉扩展参数
+   *
+   * 为什么要这样：模型是否支持图片、服务商是否认扩展参数，都不能只靠文档判断
+   * （DeepSeek V4.1 Flash 与 Gemini 都原生吃图，但第三方托管的老模型会 400）。
+   * 400 是参数校验失败，不产生 token 费用，所以降级探测成本极低；
+   * 学到结论后记进 visionUnsupported / providerParamsUnsupported，后续不再重试。
    */
   private async requestCompletion(
     context: TweetContext,
     styles: StyleConfig[],
     intent: string | undefined,
     stream: boolean,
-    signal: AbortSignal
+    signal: AbortSignal,
+    imageDataUrls: string[] = []
   ): Promise<Response> {
-    const hasParams = Object.keys(this.thinkingParams()).length > 0;
-    const response = await this.post(this.body(context, styles, intent, stream, true), signal);
-    if (response.status === 400 && hasParams) {
-      console.debug('[X Copilot] 400 with provider params, retrying without them');
-      return this.post(this.body(context, styles, intent, stream, false), signal);
+    const capabilityKey = `${this.config.baseUrl}|${this.config.model}`;
+    const imagesUsable =
+      imageDataUrls.length > 0 && !visionUnsupported.has(capabilityKey);
+    const paramsUsable =
+      Object.keys(this.thinkingParams()).length > 0 &&
+      !providerParamsUnsupported.has(capabilityKey);
+
+    const attempts: Array<{ images: string[]; params: boolean; drop: string }> = [
+      { images: imagesUsable ? imageDataUrls : [], params: paramsUsable, drop: '' },
+    ];
+    if (imagesUsable) attempts.push({ images: [], params: paramsUsable, drop: 'images' });
+    if (paramsUsable) attempts.push({ images: [], params: false, drop: 'params' });
+
+    let response: Response | undefined;
+    for (const attempt of attempts) {
+      response = await this.post(
+        this.body(context, styles, intent, stream, attempt.params, attempt.images),
+        signal
+      );
+      if (response.status !== 400) {
+        if (attempt.drop === 'images') {
+          visionUnsupported.add(capabilityKey);
+          console.debug('[X Copilot] model rejected images, continuing text-only');
+        } else if (attempt.drop === 'params') {
+          providerParamsUnsupported.add(capabilityKey);
+        }
+        return response;
+      }
+      console.debug('[X Copilot] HTTP 400, retry' + (attempt.drop ? ` without ${attempt.drop}` : ''));
     }
-    return response;
+    return response as Response;
   }
 
   /** 流式生成：对象一闭合就回调，不等整段结束 */
@@ -345,6 +408,7 @@ export class OpenAICompatProvider implements LLMProvider {
     handlers: LLMStreamHandlers
   ): Promise<ReplyCandidate[]> {
     const { styles, expected, intent } = resolveStyles(options);
+    const imageDataUrls = (options?.imageDataUrls ?? []).slice(0, MAX_VISION_IMAGES);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     const startedAt = Date.now();
@@ -394,7 +458,14 @@ export class OpenAICompatProvider implements LLMProvider {
 
     let response: Response;
     try {
-      response = await this.requestCompletion(context, styles, intent, true, controller.signal);
+      response = await this.requestCompletion(
+        context,
+        styles,
+        intent,
+        true,
+        controller.signal,
+        imageDataUrls
+      );
     } catch {
       clearTimeout(timer);
       throw new Error('NETWORK_ERROR');
@@ -516,12 +587,20 @@ export class OpenAICompatProvider implements LLMProvider {
     options?: GenerateReplyOptions
   ): Promise<ReplyCandidate[]> {
     const { styles, expected, intent } = resolveStyles(options);
+    const imageDataUrls = (options?.imageDataUrls ?? []).slice(0, MAX_VISION_IMAGES);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     let response: Response;
     try {
-      response = await this.requestCompletion(context, styles, intent, false, controller.signal);
+      response = await this.requestCompletion(
+        context,
+        styles,
+        intent,
+        false,
+        controller.signal,
+        imageDataUrls
+      );
     } catch {
       clearTimeout(timer);
       throw new Error('NETWORK_ERROR');
