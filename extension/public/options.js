@@ -28,23 +28,42 @@
     return Math.min(Math.max(v, 1), MAX_PER_STYLE);
   }
 
+  // 归一化：**保留存储中的顺序**（顺序是用户显式配置），缺失的风格追加到末尾
   function normalizeStyles(stored) {
     var list = Array.isArray(stored) ? stored : [];
-    var byKey = {};
-    list.forEach(function (s) { if (s && s.key) byKey[s.key] = s; });
+    var defaultsByKey = {};
+    DEFAULT_STYLES.forEach(function (d) { defaultsByKey[d.key] = d; });
 
-    var result = DEFAULT_STYLES.map(function (def) {
-      var saved = byKey[def.key];
-      delete byKey[def.key];
-      return {
-        key: def.key,
-        label: def.label,
-        desc: def.desc,
-        enabled: !saved || saved.enabled !== false,
-        count: saved ? clampCount(saved.count) : def.count,
-      };
+    var seen = {};
+    var result = [];
+
+    list.forEach(function (s) {
+      if (!s || !s.key || seen[s.key]) return;
+      seen[s.key] = true;
+      var def = defaultsByKey[s.key];
+      if (def) {
+        result.push({
+          key: def.key,
+          label: def.label,
+          desc: def.desc,
+          enabled: s.enabled !== false,
+          count: clampCount(s.count),
+        });
+      } else {
+        result.push({
+          key: s.key,
+          label: s.label || s.key,
+          desc: s.desc || '',
+          enabled: s.enabled !== false,
+          count: clampCount(s.count),
+        });
+      }
     });
-    Object.keys(byKey).forEach(function (k) { result.push(byKey[k]); });
+
+    DEFAULT_STYLES.forEach(function (def) {
+      if (!seen[def.key]) result.push(clone(def));
+    });
+
     return result;
   }
 
@@ -117,12 +136,15 @@
   var SVG_DOWN = '↓';
 
   var $debugLine = document.getElementById('debug-line');
+  var logHistory = [];
 
   function logAction(text) {
     console.debug('[X Copilot options]', text);
+    var time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    logHistory.push(text + ' · ' + time);
+    if (logHistory.length > 3) logHistory.shift();
     if ($debugLine) {
-      $debugLine.textContent =
-        '最后操作：' + text + ' · ' + new Date().toLocaleTimeString('zh-CN', { hour12: false });
+      $debugLine.textContent = '最近操作：' + logHistory.join('  |  ');
     }
   }
 

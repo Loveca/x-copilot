@@ -64,43 +64,43 @@ export const MAX_TOTAL_REPLIES = 10;
 
 /**
  * 归一化 UI 配置：
- * - 补齐缺失字段（老版本存储 / 新增风格）
- * - 按默认顺序补回存储中缺失的风格项
+ * - **保留存储中的风格顺序**（顺序是用户的显式配置，不能被默认顺序覆盖）
+ * - 补齐缺失字段（老版本存储 / 新增风格）：默认清单里新增的风格追加在末尾
  * - 夹取 count 范围
  */
 export function normalizeUIConfig(stored?: Partial<UIConfig> | null): UIConfig {
-  const rawStyles = Array.isArray(stored?.styles) ? stored!.styles : [];
-  const byKey = new Map(rawStyles.map((s) => [s?.key, s]));
+  return {
+    autoGenerate: stored?.autoGenerate !== false,
+    styles: normalizeStyles(stored?.styles),
+  };
+}
 
-  const styles: StyleConfig[] = DEFAULT_STYLES.map((def) => {
-    const saved = byKey.get(def.key);
-    if (!saved) return { ...def };
-    byKey.delete(def.key);
-    return {
-      key: def.key,
-      label: def.label,
-      desc: def.desc,
-      enabled: saved.enabled !== false,
-      count: clampCount(saved.count),
-    };
-  });
+function normalizeStyles(stored?: StyleConfig[] | null): StyleConfig[] {
+  const savedList = Array.isArray(stored) ? stored : [];
+  const defaultsByKey = new Map(DEFAULT_STYLES.map((d) => [d.key, d]));
+  const seen = new Set<string>();
+  const result: StyleConfig[] = [];
 
-  // 存储里存在但默认清单没有的自定义风格（未来扩展位）：保留在末尾
-  byKey.forEach((s) => {
-    if (!s?.key) return;
-    styles.push({
+  // 1) 按存储中的顺序还原（label/desc 以默认清单为准，保证 prompt 文案同步更新）
+  savedList.forEach((s) => {
+    if (!s?.key || seen.has(s.key)) return;
+    seen.add(s.key);
+    const def = defaultsByKey.get(s.key);
+    result.push({
       key: s.key,
-      label: s.label || s.key,
-      desc: s.desc || '',
+      label: def?.label ?? s.label ?? s.key,
+      desc: def?.desc ?? s.desc ?? '',
       enabled: s.enabled !== false,
       count: clampCount(s.count),
     });
   });
 
-  return {
-    autoGenerate: stored?.autoGenerate !== false,
-    styles,
-  };
+  // 2) 默认清单里存在但存储中没有的风格（新增功能）追加在末尾
+  DEFAULT_STYLES.forEach((def) => {
+    if (!seen.has(def.key)) result.push({ ...def });
+  });
+
+  return result;
 }
 
 function clampCount(n: unknown): number {
