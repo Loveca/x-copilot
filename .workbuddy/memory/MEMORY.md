@@ -24,7 +24,7 @@
 - Options 页为**左侧导航 + 右侧内容**分区结构（`public/options.html` + `public/options.js`，静态实现，无构建）
 - 现有分区（命名要直白，用户明确要求）：**模型配置** / **回复风格** / **自动生成** / **插件信息**
 - 回复风格可配置：`uiConfig.styles: StyleConfig[]`（key/label/desc/enabled/count，顺序即候选顺序），设置页支持拖拽排序、每种 1-3 条、启用开关、恢复默认；生成时 prompt 按顺序+数量输出，count 上限 3、总数上限 10；风格变更会清空 Panel 会话缓存
-- 拖拽排序用 **pointer 事件**（handle 上 pointerdown + document move/up + 实时换位），不要用 HTML5 原生 DnD——含表单控件的行里不可靠（实测不触发）
+- 排序交互：设置页风格排序用**每行上下箭头按钮**（可靠、可键盘操作）。拖拽方案试过 HTML5 DnD 与 pointer 事件两次均无效，问题记录在 docs/TODO.md，暂不再尝试拖拽
 - Panel 展示：**一个风格一张卡，同风格多条候选为卡内 item**（App 里 groupByStyle 分组），每条候选自带「填入」按钮
 - 静态 options 页与 `lib/config.ts` 有重复常量（DEFAULT_STYLES），新增/改风格时两处都要改（options.js 顶部有注释提示）
 - 存储分键：`llmConfig`（API Key/模型/BaseURL）、`uiConfig`（交互类，当前仅 autoGenerate）
