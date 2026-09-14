@@ -109,13 +109,13 @@ export const CSS_TEXT = `
 .xc-error { color: #f4212e; }
 
 .xc-card {
-  border: 1px solid #eff3f4;
+  border: 1px solid #0f1419;
   border-radius: 12px;
   padding: 10px 12px;
   margin-top: 10px;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease;
 }
-.xc-card:hover { background: #f7f9f9; border-color: #cfd9de; }
+.xc-card:hover { background: #f7f9f9; }
 .xc-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .xc-badge {
   font-size: 11px;
