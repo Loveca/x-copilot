@@ -32,12 +32,12 @@
 
 ```text
 base_url: https://api.deepseek.com        # /v1/chat/completions，OpenAI 兼容
-model:    deepseek-flash                  # 默认；deepseek-v4-pro 为备选（更强但更贵更慢，评论生成不需要）
+model:    deepseek-flash                  # 默认；deepseek-v4-pro 为备选（更强但更贵更慢，回复生成不需要）
 api_key:  用户自备，存 chrome.storage.local
 response: 强制 JSON 输出（response_format: { type: "json_object" }）
 ```
 
-评论生成是短文本任务，`deepseek-flash` 足够；temperature 建议 0.9~1.1 区间以保证 5 条候选的风格差异性。模型名以 https://api-docs.deepseek.com/zh-cn/ 为准。
+回复生成是短文本任务，`deepseek-flash` 足够；temperature 建议 0.9~1.1 区间以保证 5 条候选的风格差异性。模型名以 https://api-docs.deepseek.com/zh-cn/ 为准。
 
 ---
 
@@ -158,7 +158,7 @@ x-copilot/
 | 3 | TweetDetector | 打开任意 Tweet 能取到完整 TweetContext |
 | 4 | FloatingButton（拖动 + 位置持久化） | 不遮挡核心 UI |
 | 5 | Panel 开关 | 点球开、再点关 |
-| 6 | 接通 LLM 生成 5 条评论 | loading → 5 条风格候选 |
+| 6 | 接通 LLM 生成 5 条回复 | loading → 5 条风格候选 |
 | 7 | Fill Reply（用 Task 0 结论） | 文字进 composer，绝不发送 |
 | 8 | Tweet 切换检测 | Panel 自动更新 |
 | 9 | session cache | 同 Tweet 不重复请求 |

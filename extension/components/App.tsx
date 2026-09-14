@@ -69,12 +69,12 @@ export function App() {
     return () => browser.storage.onChanged.removeListener(onChanged);
   }, []);
 
-  // 生成评论（手动「重新生成」与自动触发共用）
+  // 生成回复候选（手动「重新生成」与自动触发共用）
   const runGenerate = useCallback(async (target: TweetContext, auto: boolean) => {
     const seq = ++genSeqRef.current;
     setGenerating(true);
     setError(undefined);
-    if (auto) setToast('检测到新 Tweet，正在自动生成评论建议……');
+    if (auto) setToast('检测到新 Tweet，正在自动生成回复……');
     try {
       const result = await browser.runtime.sendMessage({
         type: 'GENERATE_REPLIES',
@@ -86,7 +86,7 @@ export function App() {
       if (Array.isArray(result) && result.length > 0) {
         setReplies(result);
         if (target.id) cacheRef.current.set(target.id, result);
-        if (auto) setToast('评论建议已生成');
+        if (auto) setToast('回复已生成');
       } else {
         setError('生成失败，请稍后重试。');
       }
@@ -122,7 +122,7 @@ export function App() {
       const cached = t.id ? cacheRef.current.get(t.id) : undefined;
       setReplies(cached ?? []);
       setOpen(true);
-      // 自动生成关闭时只弹出面板，等用户手动点「生成评论建议」
+      // 自动生成关闭时只弹出面板，等用户手动点「生成回复」
       if (!cached && autoGenerateRef.current) {
         void runGenerate(t, true);
       }
@@ -147,7 +147,7 @@ export function App() {
   const fill = useCallback(async (reply: ReplyCandidate) => {
     const composer = findReplyComposer();
     if (!composer) {
-      setToast('未找到评论输入框，请先点击 Reply。');
+      setToast('未找到回复输入框，请先点击「回复」。');
       return;
     }
     const ok = fillReplyComposer(composer, reply.text);
@@ -192,7 +192,7 @@ export function App() {
           ) : replies.length > 0 ? (
             '重新生成'
           ) : (
-            '生成评论建议'
+            '生成回复'
           )}
         </button>
 

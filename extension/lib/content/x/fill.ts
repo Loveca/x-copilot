@@ -1,5 +1,5 @@
 /**
- * 把评论写入 X 的 Reply composer（替换语义）。
+ * 把回复写入 X 的 Reply composer（替换语义）。
  *
  * X 的 composer 是 contenteditable + Lexical 编辑器，不能用 innerText 直接赋值，
  * execCommand('insertText') 会双重插入（浏览器默认行为 + 编辑器各处理一次，

@@ -341,13 +341,13 @@
     <!-- 自动生成 -->
     <section class="pane" id="pane-behavior">
       <h2>自动生成</h2>
-      <p class="pane-desc">控制打开 Tweet 时是否自动生成评论候选。</p>
+      <p class="pane-desc">控制打开 Tweet 时是否自动生成回复候选。</p>
 
       <div class="group">
         <div class="row">
           <div>
-            <p class="row-label">自动生成评论建议</p>
-            <p class="row-desc">打开或切换 Tweet 时自动生成候选，并弹出面板。关闭后需手动点击「生成评论建议」。</p>
+            <p class="row-label">自动生成回复</p>
+            <p class="row-desc">打开或切换 Tweet 时自动生成候选，并弹出面板。关闭后需手动点击「生成回复」。</p>
           </div>
           <label class="switch">
             <input type="checkbox" id="auto-generate" />
@@ -360,7 +360,7 @@
     <!-- 插件信息 -->
     <section class="pane" id="pane-about">
       <h2>插件信息</h2>
-      <p class="pane-desc">X Copilot 是一个 X（Twitter）浏览辅助工具：识别当前 Tweet，生成多条不同风格的评论候选，点击「填入」写入回复框，由你自行检查后发送。</p>
+      <p class="pane-desc">X Copilot 是一个 X（Twitter）浏览辅助工具：识别当前 Tweet，生成多条不同风格的回复候选，点击「填入」写入回复框，由你自行检查后发送。</p>
 
       <div class="group">
         <div class="group-title">版本</div>
@@ -371,7 +371,7 @@
       <div class="group">
         <div class="group-title">数据处理</div>
         <p class="desc" style="margin:0;">
-          被识别的 Tweet 文本会通过 background 发送到你在「常规」中配置的模型服务（默认 DeepSeek）用于生成评论，
+          被识别的 Tweet 文本会通过 background 发送到你在「模型配置」中配置的模型服务（默认 DeepSeek）用于生成回复，
           不经过任何其他服务器。插件不读取登录 Cookie、不保存密码、不收集统计数据。
         </p>
       </div>

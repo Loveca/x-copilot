@@ -75,7 +75,7 @@ function hashKey(s: string): string {
 /**
  * 当前 Tweet 判定：URL 主判 + Reply Modal 兜底 + DOM 字段提取。
  * - 打开 Tweet 详情（含 Timeline 点进 Modal）时 X 会 pushState 更新 URL；
- * - 但在 x.com/home 里点评论图标弹出的 Reply Modal 不改变 URL，
+ * - 但在 x.com/home 里点回复图标弹出的 Reply Modal 不改变 URL，
  *   此时从可见 dialog 内的被回复帖子 article 提取上下文。
  */
 export class TweetDetector {
@@ -99,7 +99,7 @@ export class TweetDetector {
   }
 
   /**
-   * Reply Modal（x.com/home 点评论图标弹出，URL 不变）：
+   * Reply Modal（x.com/home 点回复图标弹出，URL 不变）：
    * 从可见 dialog 中取被回复的 tweet article。
    */
   private getReplyModalTweet(): TweetContext | null {
@@ -148,7 +148,7 @@ export class TweetDetector {
       if (id === null) {
         // 过渡态保护：Modal 挂载等场景会造成瞬间"页面上没有 article"，
         // 不立即相信 null，延迟复查确认后才真正判定离开。
-        // （否则详情页点评论图标会误发 null → 取消生成 → 重新生成）
+        // （否则详情页点回复图标会误发 null → 取消生成 → 重新生成）
         if (nullTimer) return;
         nullTimer = setTimeout(() => {
           nullTimer = undefined;
