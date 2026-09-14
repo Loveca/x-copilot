@@ -42,6 +42,14 @@ npm install
 2. 构建完成后，加载插件 → 打开任意 X 页面 → 点击 ✦ 悬浮球 → Panel **左下角「设置」** → 填入 API Key → 保存
 3. （可选）修改模型或 Base URL，默认 `deepseek-flash` / `https://api.deepseek.com/v1`
 
+设置页分为三个分区（左侧导航切换）：
+
+| 分区 | 内容 |
+|---|---|
+| 常规 | API Key、模型、API Base URL |
+| 交互 | 自动生成评论建议开关（关闭后需手动点击生成） |
+| 关于 | 版本、仓库地址、数据处理说明 |
+
 ## 构建 Extension
 
 ```bash

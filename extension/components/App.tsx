@@ -3,7 +3,8 @@ import { browser } from 'wxt/browser';
 import { TweetDetector } from '@/lib/content/x/tweet-detector';
 import { findReplyComposer } from '@/lib/content/x/composer-detector';
 import { fillReplyComposer } from '@/lib/content/x/fill';
-import type { ReplyCandidate, TweetContext } from '@/types';
+import { DEFAULT_UI_CONFIG, UI_CONFIG_STORAGE_KEY } from '@/lib/config';
+import type { ReplyCandidate, TweetContext, UIConfig } from '@/types';
 import { FloatingButton } from './FloatingButton';
 import { Panel } from './Panel';
 import { ReplyCard } from './ReplyCard';
@@ -29,6 +30,25 @@ export function App() {
   const cacheRef = useRef<Map<string, ReplyCandidate[]>>(new Map());
   // 生成序号：生成过程中切换 Tweet 时，旧结果作废，避免错挂到新 Tweet
   const genSeqRef = useRef(0);
+  // 自动生成开关（设置页可关，改动即时生效）
+  const autoGenerateRef = useRef(DEFAULT_UI_CONFIG.autoGenerate);
+
+  useEffect(() => {
+    const apply = (cfg?: Partial<UIConfig>) => {
+      autoGenerateRef.current = { ...DEFAULT_UI_CONFIG, ...(cfg ?? {}) }.autoGenerate;
+    };
+    browser.storage.local
+      .get(UI_CONFIG_STORAGE_KEY)
+      .then((res) => apply(res[UI_CONFIG_STORAGE_KEY] as Partial<UIConfig> | undefined))
+      .catch(() => {});
+    const onChanged = (changes: Record<string, { newValue?: unknown }>, area: string) => {
+      if (area === 'local' && changes[UI_CONFIG_STORAGE_KEY]) {
+        apply(changes[UI_CONFIG_STORAGE_KEY].newValue as Partial<UIConfig>);
+      }
+    };
+    browser.storage.onChanged.addListener(onChanged);
+    return () => browser.storage.onChanged.removeListener(onChanged);
+  }, []);
 
   // 生成评论（手动「重新生成」与自动触发共用）
   const runGenerate = useCallback(async (target: TweetContext, auto: boolean) => {
@@ -83,7 +103,8 @@ export function App() {
       const cached = t.id ? cacheRef.current.get(t.id) : undefined;
       setReplies(cached ?? []);
       setOpen(true);
-      if (!cached) {
+      // 自动生成关闭时只弹出面板，等用户手动点「生成评论建议」
+      if (!cached && autoGenerateRef.current) {
         void runGenerate(t, true);
       }
     });

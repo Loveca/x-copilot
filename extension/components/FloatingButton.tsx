@@ -18,7 +18,8 @@ export function FloatingButton({ open, onToggle }: Props) {
   useEffect(() => {
     browser.storage.local
       .get('floatingPos')
-      .then(({ floatingPos }) => {
+      .then((res) => {
+        const floatingPos = res.floatingPos as { x: number; y: number } | undefined;
         if (floatingPos && typeof floatingPos.x === 'number') setPos(floatingPos);
         else setPos(DEFAULT_POS());
       })

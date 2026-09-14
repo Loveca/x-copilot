@@ -26,3 +26,9 @@ export interface LLMConfig {
   apiKey: string;
   model: string;
 }
+
+/** 交互类配置（扩展点：主题、连击设置等） */
+export interface UIConfig {
+  /** 打开/切换 Tweet 时是否自动生成评论建议 */
+  autoGenerate: boolean;
+}

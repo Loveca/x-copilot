@@ -7,32 +7,88 @@
   <style>
     /* X 浅色主题：bg #fff / surface #f7f9f9 / border #eff3f4 / 强边框 #cfd9de
        text #0f1419 / muted #536471 / hint #8b98a5 / 主操作 黑底白字 */
+    * { box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
       background: #ffffff;
       color: #0f1419;
       margin: 0;
-      padding: 40px 16px;
       display: flex;
-      justify-content: center;
+      min-height: 100vh;
+      font-size: 14px;
     }
-    .card {
-      background: #ffffff;
-      border: 1px solid #eff3f4;
-      border-radius: 16px;
-      padding: 28px 32px;
-      width: 100%;
-      max-width: 480px;
+
+    /* ---------- 左侧导航 ---------- */
+    .sidebar {
+      width: 208px;
+      flex-shrink: 0;
+      border-right: 1px solid #eff3f4;
+      padding: 20px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
-    h1 { font-size: 20px; margin: 0 0 24px; display: flex; align-items: center; gap: 10px; }
-    .logo {
+    .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 20px; }
+    .brand-logo {
       width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
-      background: #0f1419;
-      color: #ffffff; font-size: 16px; line-height: 30px; text-align: center;
+      background: #0f1419; color: #ffffff;
+      font-size: 16px; line-height: 30px; text-align: center;
     }
-    label { display: block; font-size: 13px; font-weight: 700; margin: 16px 0 6px; color: #0f1419; }
-    .desc { font-size: 12px; color: #536471; margin: 0 0 6px; line-height: 1.5; }
-    input {
+    .brand-text { line-height: 1.25; }
+    .brand-name { font-size: 14px; font-weight: 700; }
+    .brand-version { font-size: 11px; color: #8b98a5; }
+
+    .group-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #8b98a5;
+      padding: 14px 8px 6px;
+      letter-spacing: 0.02em;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      border: none;
+      background: transparent;
+      color: #536471;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      text-align: left;
+      padding: 9px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.12s ease, color 0.12s ease;
+    }
+    .nav-item:hover { background: #f7f9f9; color: #0f1419; }
+    .nav-item.active { background: #0f1419; color: #ffffff; }
+    .nav-item svg { flex-shrink: 0; }
+
+    .sidebar-footer { margin-top: auto; padding: 8px; font-size: 11px; color: #8b98a5; line-height: 1.6; }
+
+    /* ---------- 右侧内容 ---------- */
+    .content { flex: 1; padding: 32px 40px 60px; max-width: 720px; }
+    .pane { display: none; }
+    .pane.active { display: block; }
+
+    h2 { font-size: 19px; font-weight: 700; margin: 0 0 6px; }
+    .pane-desc { font-size: 13px; color: #536471; margin: 0 0 24px; line-height: 1.6; }
+
+    .group {
+      border: 1px solid #eff3f4;
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin-bottom: 16px;
+    }
+    .group-title { font-size: 13px; font-weight: 700; margin: 0 0 14px; }
+
+    label { display: block; font-size: 13px; font-weight: 700; margin: 16px 0 6px; }
+    label:first-of-type { margin-top: 0; }
+    .desc { font-size: 12px; color: #536471; margin: 0 0 8px; line-height: 1.55; }
+    input[type="text"], input[type="password"] {
       width: 100%;
       background: #ffffff;
       color: #0f1419;
@@ -40,53 +96,164 @@
       border-radius: 10px;
       padding: 10px 12px;
       font-size: 14px;
-      box-sizing: border-box;
+      font-family: inherit;
       outline: none;
     }
-    input:focus { border-color: #0f1419; }
+    input[type="text"]:focus, input[type="password"]:focus { border-color: #0f1419; }
     input::placeholder { color: #8b98a5; }
-    button {
-      margin-top: 24px;
-      width: 100%;
+
+    .btn {
+      margin-top: 18px;
       border: none;
       border-radius: 9999px;
-      padding: 11px 0;
+      padding: 10px 22px;
       font-size: 14px;
       font-weight: 700;
+      font-family: inherit;
       color: #ffffff;
-      cursor: pointer;
       background: #0f1419;
+      cursor: pointer;
       transition: background 0.15s ease;
     }
-    button:hover { background: #272c30; }
-    .status { text-align: center; font-size: 13px; margin-top: 12px; min-height: 18px; }
+    .btn:hover { background: #272c30; }
+
+    .row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 14px 0;
+      border-bottom: 1px solid #eff3f4;
+    }
+    .row:last-child { border-bottom: none; padding-bottom: 0; }
+    .row:first-child { padding-top: 0; }
+    .row-label { font-size: 13px; font-weight: 700; margin: 0 0 4px; }
+    .row-desc { font-size: 12px; color: #536471; margin: 0; line-height: 1.55; }
+
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch .slider {
+      position: absolute; inset: 0;
+      background: #cfd9de;
+      border-radius: 9999px;
+      cursor: pointer;
+      transition: background 0.18s ease;
+    }
+    .switch .slider::before {
+      content: "";
+      position: absolute;
+      height: 18px; width: 18px;
+      left: 3px; top: 3px;
+      background: #ffffff;
+      border-radius: 50%;
+      transition: transform 0.18s ease;
+    }
+    .switch input:checked + .slider { background: #0f1419; }
+    .switch input:checked + .slider::before { transform: translateX(20px); }
+
+    .status { font-size: 13px; margin-top: 12px; min-height: 18px; }
     .status.ok { color: #0f1419; }
     .status.err { color: #f4212e; }
-    a { color: #0f1419; text-decoration: underline; }
+
+    a { color: #0f1419; }
+    .kv { display: flex; justify-content: space-between; font-size: 13px; padding: 10px 0; border-bottom: 1px solid #eff3f4; }
+    .kv:last-child { border-bottom: none; }
+    .kv span:first-child { color: #536471; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1><span class="logo">✦</span> X Copilot 设置</h1>
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-logo">✦</div>
+      <div class="brand-text">
+        <div class="brand-name">X Copilot</div>
+        <div class="brand-version">v0.1.0</div>
+      </div>
+    </div>
 
-    <label for="api-key">DeepSeek API Key</label>
-    <p class="desc">
-      在 <a href="https://platform.deepseek.com/" target="_blank" rel="noreferrer">DeepSeek 开放平台</a> 获取。
-      Key 仅保存在本机浏览器存储中，不会上传到任何第三方服务器。
-    </p>
-    <input id="api-key" type="password" placeholder="sk-..." />
+    <button class="nav-item active" data-pane="general">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      常规
+    </button>
+    <button class="nav-item" data-pane="behavior">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></svg>
+      交互
+    </button>
+    <button class="nav-item" data-pane="about">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+      关于
+    </button>
 
-    <label for="model">模型</label>
-    <p class="desc">默认 deepseek-flash；可选 deepseek-v4-pro（更强但更贵更慢）。</p>
-    <input id="model" type="text" />
+    <div class="sidebar-footer">设置保存在本机浏览器存储中，不会上传。</div>
+  </nav>
 
-    <label for="base-url">API Base URL</label>
-    <p class="desc">OpenAI 兼容 endpoint，默认 https://api.deepseek.com/v1。</p>
-    <input id="base-url" type="text" />
+  <main class="content">
+    <!-- 常规 -->
+    <section class="pane active" id="pane-general">
+      <h2>常规</h2>
+      <p class="pane-desc">模型与接口配置。API Key 仅保存在本机浏览器存储中。</p>
 
-    <button id="save">保存</button>
-    <div id="status" class="status"></div>
-  </div>
+      <div class="group">
+        <div class="group-title">模型服务</div>
+
+        <label for="api-key">API Key</label>
+        <p class="desc">在 <a href="https://platform.deepseek.com/" target="_blank" rel="noreferrer">DeepSeek 开放平台</a> 获取，格式 sk-...</p>
+        <input id="api-key" type="password" placeholder="sk-..." />
+
+        <label for="model">模型</label>
+        <p class="desc">默认 deepseek-flash；可选 deepseek-v4-pro（更强但更贵更慢）。</p>
+        <input id="model" type="text" placeholder="deepseek-flash" />
+
+        <label for="base-url">API Base URL</label>
+        <p class="desc">OpenAI 兼容 endpoint，默认 https://api.deepseek.com/v1。</p>
+        <input id="base-url" type="text" placeholder="https://api.deepseek.com/v1" />
+
+        <button class="btn" id="save-llm">保存</button>
+        <div class="status" id="status-llm"></div>
+      </div>
+    </section>
+
+    <!-- 交互 -->
+    <section class="pane" id="pane-behavior">
+      <h2>交互</h2>
+      <p class="pane-desc">控制 Copilot 在浏览 X 时的行为。</p>
+
+      <div class="group">
+        <div class="group-title">生成</div>
+
+        <div class="row">
+          <div>
+            <p class="row-label">自动生成评论建议</p>
+            <p class="row-desc">打开或切换 Tweet 时自动生成候选，并弹出面板。关闭后需手动点击「生成评论建议」。</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="auto-generate" />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- 关于 -->
+    <section class="pane" id="pane-about">
+      <h2>关于</h2>
+      <p class="pane-desc">X Copilot 是一个 X（Twitter）浏览辅助工具：识别当前 Tweet，生成多条不同风格的评论候选，点击「填入」写入回复框，由你自行检查后发送。</p>
+
+      <div class="group">
+        <div class="group-title">版本</div>
+        <div class="kv"><span>当前版本</span><span>0.1.0</span></div>
+        <div class="kv"><span>开源仓库</span><span><a href="https://github.com/Loveca/x-copilot" target="_blank" rel="noreferrer">github.com/Loveca/x-copilot</a></span></div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">数据处理</div>
+        <p class="desc" style="margin:0;">
+          被识别的 Tweet 文本会通过 background 发送到你在「常规」中配置的模型服务（默认 DeepSeek）用于生成评论，
+          不经过任何其他服务器。插件不读取登录 Cookie、不保存密码、不收集统计数据。
+        </p>
+      </div>
+    </section>
+  </main>
 
   <!-- MV3 CSP 禁止内联 script，脚本必须放外部文件 -->
   <script src="options.js"></script>

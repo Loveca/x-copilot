@@ -2,41 +2,70 @@
 (function () {
   'use strict';
 
-  var DEFAULTS = { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-flash', apiKey: '' };
-  var KEY = 'llmConfig';
+  var LLM_KEY = 'llmConfig';
+  var UI_KEY = 'uiConfig';
+  var LLM_DEFAULTS = { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-flash', apiKey: '' };
+  var UI_DEFAULTS = { autoGenerate: true };
 
+  // ---------- 左侧导航切换 ----------
+  var navItems = document.querySelectorAll('.nav-item');
+  var panes = document.querySelectorAll('.pane');
+  Array.prototype.forEach.call(navItems, function (item) {
+    item.addEventListener('click', function () {
+      var target = item.getAttribute('data-pane');
+      Array.prototype.forEach.call(navItems, function (n) {
+        n.classList.toggle('active', n === item);
+      });
+      Array.prototype.forEach.call(panes, function (p) {
+        p.classList.toggle('active', p.id === 'pane-' + target);
+      });
+    });
+  });
+
+  // ---------- 常规：模型服务 ----------
   var $apiKey = document.getElementById('api-key');
   var $model = document.getElementById('model');
   var $baseUrl = document.getElementById('base-url');
-  var $status = document.getElementById('status');
-  var $save = document.getElementById('save');
+  var $statusLlm = document.getElementById('status-llm');
 
-  function setStatus(text, ok) {
-    $status.textContent = text;
-    $status.className = 'status ' + (ok ? 'ok' : 'err');
+  function setStatus(el, text, ok) {
+    el.textContent = text;
+    el.className = 'status ' + (ok ? 'ok' : 'err');
   }
 
-  chrome.storage.local.get(KEY).then(function (res) {
-    var cfg = Object.assign({}, DEFAULTS, res[KEY] || {});
+  chrome.storage.local.get(LLM_KEY).then(function (res) {
+    var cfg = Object.assign({}, LLM_DEFAULTS, res[LLM_KEY] || {});
     $apiKey.value = cfg.apiKey || '';
     $model.value = cfg.model || '';
     $baseUrl.value = cfg.baseUrl || '';
   });
 
-  $save.addEventListener('click', function () {
+  document.getElementById('save-llm').addEventListener('click', function () {
     if (!$apiKey.value.trim()) {
-      setStatus('API Key 不能为空。', false);
+      setStatus($statusLlm, 'API Key 不能为空。', false);
       return;
     }
     var cfg = {
       apiKey: $apiKey.value.trim(),
-      model: $model.value.trim() || DEFAULTS.model,
-      baseUrl: $baseUrl.value.trim() || DEFAULTS.baseUrl,
+      model: $model.value.trim() || LLM_DEFAULTS.model,
+      baseUrl: $baseUrl.value.trim() || LLM_DEFAULTS.baseUrl,
     };
     chrome.storage.local.set({ llmConfig: cfg }).then(function () {
-      setStatus('✓ 已保存，配置立即生效。', true);
+      setStatus($statusLlm, '已保存', true);
     }).catch(function () {
-      setStatus('保存失败，请重试。', false);
+      setStatus($statusLlm, '保存失败，请重试。', false);
     });
+  });
+
+  // ---------- 交互：自动生成开关（切换即保存） ----------
+  var $autoGenerate = document.getElementById('auto-generate');
+
+  chrome.storage.local.get(UI_KEY).then(function (res) {
+    var cfg = Object.assign({}, UI_DEFAULTS, res[UI_KEY] || {});
+    $autoGenerate.checked = cfg.autoGenerate !== false;
+  });
+
+  $autoGenerate.addEventListener('change', function () {
+    chrome.storage.local.set({ uiConfig: { autoGenerate: $autoGenerate.checked } });
   });
 })();
