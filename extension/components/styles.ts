@@ -84,6 +84,23 @@ export const CSS_TEXT = `
 .xc-tweet-author { font-size: 12px; font-weight: 700; color: #0f1419; margin-bottom: 4px; }
 .xc-tweet-text { font-size: 13px; line-height: 1.5; color: #536471; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
+.xc-intent {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid #cfd9de;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #0f1419;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.5;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.xc-intent::placeholder { color: #8b98a5; }
+.xc-intent:focus { border-color: #0f1419; }
+
 .xc-generate-btn {
   width: 100%;
   border: none;

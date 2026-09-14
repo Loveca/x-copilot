@@ -31,6 +31,8 @@ export interface StyleConfig {
 export interface GenerateReplyOptions {
   count?: number;
   styles?: StyleConfig[];
+  /** 用户想表达的核心观点（可选）。给了就让所有候选围绕它展开 */
+  intent?: string;
 }
 
 export interface LLMConfig {

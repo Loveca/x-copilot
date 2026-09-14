@@ -14,7 +14,7 @@ import type { LLMProvider } from './provider';
 
 const REQUEST_TIMEOUT_MS = 30_000;
 
-function buildPrompt(context: TweetContext, styles: StyleConfig[]): string {
+function buildPrompt(context: TweetContext, styles: StyleConfig[], intent?: string): string {
   const total = styles.reduce((sum, s) => sum + s.count, 0);
   const styleLines = styles
     .map((s, i) => `${i + 1}. ${s.label} — ${s.count} 条：${s.desc}`)
@@ -39,6 +39,17 @@ function buildPrompt(context: TweetContext, styles: StyleConfig[]): string {
     `Author: ${context.author ?? 'unknown'} (${context.authorHandle ?? ''})`,
     `Tweet text: ${context.text}`,
   ];
+  if (intent) {
+    parts.push(
+      '',
+      'MOST IMPORTANT — the user already knows what they want to say. Their own words:',
+      `"${intent}"`,
+      'Every reply must clearly convey THIS point, phrased naturally in the given style',
+      '(do not quote it verbatim, do not add unrelated claims, keep the meaning accurate).',
+      "Keep the same language as the original Tweet unless the user's wording is in another language."
+    );
+  }
+
   if (context.quotedTweet?.text) {
     parts.push(
       `Quoted tweet by ${context.quotedTweet.author ?? 'unknown'}: ${context.quotedTweet.text}`
@@ -76,6 +87,7 @@ export class OpenAICompatProvider implements LLMProvider {
     }
 
     const expected = expectedStyleSequence(styles);
+    const intent = options?.intent?.trim().slice(0, 300) || undefined;
     const baseUrl = this.config.baseUrl.replace(/\/+$/, '');
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -90,7 +102,7 @@ export class OpenAICompatProvider implements LLMProvider {
         },
         body: JSON.stringify({
           model: this.config.model,
-          messages: [{ role: 'user', content: buildPrompt(context, styles) }],
+          messages: [{ role: 'user', content: buildPrompt(context, styles, intent) }],
           temperature: 1.0,
           response_format: { type: 'json_object' },
         }),

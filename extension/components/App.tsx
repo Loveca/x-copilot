@@ -44,11 +44,15 @@ export function App() {
   const [error, setError] = useState<string | undefined>();
   const [toast, setToast] = useState<string | undefined>();
   const [filledId, setFilledId] = useState<string | null>(null);
+  const [intent, setIntent] = useState('');
   const cacheRef = useRef<Map<string, ReplyCandidate[]>>(new Map());
   // 生成序号：生成过程中切换 Tweet 时，旧结果作废，避免错挂到新 Tweet
   const genSeqRef = useRef(0);
   // 自动生成开关（设置页可关，改动即时生效）
   const autoGenerateRef = useRef(DEFAULT_UI_CONFIG.autoGenerate);
+
+  // 缓存键：同一 Tweet 下，「带意图」与「不带意图」的结果要分开存
+  const cacheKey = (id?: string, intentText = '') => `${id ?? 'no-id'}::${intentText.trim()}`;
 
   useEffect(() => {
     const apply = (cfg?: Partial<UIConfig>) => {
@@ -69,34 +73,48 @@ export function App() {
     return () => browser.storage.onChanged.removeListener(onChanged);
   }, []);
 
-  // 生成回复候选（手动「重新生成」与自动触发共用）
-  const runGenerate = useCallback(async (target: TweetContext, auto: boolean) => {
-    const seq = ++genSeqRef.current;
-    setGenerating(true);
-    setError(undefined);
-    if (auto) setToast('检测到新 Tweet，正在自动生成回复……');
-    try {
-      const result = await browser.runtime.sendMessage({
-        type: 'GENERATE_REPLIES',
-        tweet: target,
-        options: { count: 5 },
-      });
-      // 生成期间已切换到其他 Tweet：丢弃本次结果
-      if (seq !== genSeqRef.current) return;
-      if (Array.isArray(result) && result.length > 0) {
-        setReplies(result);
-        if (target.id) cacheRef.current.set(target.id, result);
-        if (auto) setToast('回复已生成');
-      } else {
-        setError('生成失败，请稍后重试。');
+  // 生成回复候选（手动「生成回复」与自动触发共用）
+  const runGenerate = useCallback(
+    async (target: TweetContext, auto: boolean, intentText = '') => {
+      const cleanIntent = intentText.trim();
+      const key = cacheKey(target.id, cleanIntent);
+
+      // 同一 Tweet + 同一意图已生成过：直接用缓存，不重复请求
+      const cached = cacheRef.current.get(key);
+      if (cached) {
+        setReplies(cached);
+        setError(undefined);
+        return;
       }
-    } catch (e) {
-      if (seq !== genSeqRef.current) return;
-      setError(friendlyError(e));
-    } finally {
-      if (seq === genSeqRef.current) setGenerating(false);
-    }
-  }, []);
+
+      const seq = ++genSeqRef.current;
+      setGenerating(true);
+      setError(undefined);
+      if (auto) setToast('检测到新 Tweet，正在自动生成回复……');
+      try {
+        const result = await browser.runtime.sendMessage({
+          type: 'GENERATE_REPLIES',
+          tweet: target,
+          options: { count: 5, intent: cleanIntent || undefined },
+        });
+        // 生成期间已切换到其他 Tweet：丢弃本次结果
+        if (seq !== genSeqRef.current) return;
+        if (Array.isArray(result) && result.length > 0) {
+          setReplies(result);
+          cacheRef.current.set(key, result);
+          if (auto) setToast('回复已生成');
+        } else {
+          setError('生成失败，请稍后重试。');
+        }
+      } catch (e) {
+        if (seq !== genSeqRef.current) return;
+        setError(friendlyError(e));
+      } finally {
+        if (seq === genSeqRef.current) setGenerating(false);
+      }
+    },
+    []
+  );
 
   // 取消在途生成（关闭 Modal / 离开 Tweet 时调用）
   const cancelGeneration = useCallback(() => {
@@ -112,6 +130,7 @@ export function App() {
       setError(undefined);
       setToast(undefined);
       setFilledId(null);
+      setIntent('');
       if (!t) {
         // Modal 关闭 / 离开 Tweet：取消在途请求，收起 Panel
         cancelGeneration();
@@ -119,7 +138,7 @@ export function App() {
         setOpen(false);
         return;
       }
-      const cached = t.id ? cacheRef.current.get(t.id) : undefined;
+      const cached = cacheRef.current.get(cacheKey(t.id, ''));
       setReplies(cached ?? []);
       setOpen(true);
       // 自动生成关闭时只弹出面板，等用户手动点「生成回复」
@@ -179,9 +198,25 @@ export function App() {
           </div>
         )}
 
+        {tweet && (
+          <input
+            className="xc-intent"
+            type="text"
+            value={intent}
+            maxLength={200}
+            placeholder="想说什么？（可选，例如：他这套逻辑忽略了汇率）"
+            onChange={(e) => setIntent(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !generating && tweet) {
+                void runGenerate(tweet, false, intent);
+              }
+            }}
+          />
+        )}
+
         <button
           className="xc-generate-btn"
-          onClick={() => tweet && runGenerate(tweet, false)}
+          onClick={() => tweet && runGenerate(tweet, false, intent)}
           disabled={generating || !tweet}
         >
           {generating ? (
@@ -189,6 +224,8 @@ export function App() {
               <span className="xc-spin" />
               正在生成……
             </>
+          ) : intent.trim() ? (
+            '按这个想法生成'
           ) : replies.length > 0 ? (
             '重新生成'
           ) : (
