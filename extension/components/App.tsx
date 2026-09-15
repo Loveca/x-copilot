@@ -641,7 +641,15 @@ export function App() {
           ) : (
           <>
             <div className="xc-idea-rail">
-              <span className="xc-idea-title">灵感来源</span>
+              <div className="xc-idea-head">
+                <span className="xc-idea-title">灵感来源</span>
+                {generating && genSource === 'idea' && (
+                  <span className="xc-idea-busy">
+                    <span className="xc-spin dark" />
+                    {elapsedMs > 800 ? `${(elapsedMs / 1000).toFixed(1)}s` : '正在想……'}
+                  </span>
+                )}
+              </div>
               <div className="xc-idea-bar">
                 <button
                   type="button"
@@ -698,7 +706,10 @@ export function App() {
             </div>
 
             {ideaTab === 'idea' && ideaItems.length === 0 && generating && genSource === 'idea' && (
-              <div className="xc-idea-loading">正在想几句……</div>
+              <div className="xc-idea-loading">
+                <span className="xc-spin dark" />
+                正在想几句 {elapsedMs > 800 ? `${(elapsedMs / 1000).toFixed(1)}s` : '……'}
+              </div>
             )}
 
             {ideaTab === 'idea' && ideaItems.length > 0 && (
@@ -774,7 +785,8 @@ export function App() {
           className="xc-generate-btn"
           onClick={() => runGenerate(tweet, false, intent)}
           disabled={
-            generating ||
+            // 后台抽「随便聊聊」不算：那时按钮不该置灰，用户随时可以自己发起生成
+            (generating && genSource !== 'idea') ||
             (mode === 'reply' && !tweet) ||
             // 发帖模式：输入框为空就没有"要说什么"，禁用（与回复模式的 disabled 样式一致）
             (mode === 'post' && !intent.trim())

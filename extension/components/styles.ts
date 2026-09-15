@@ -173,11 +173,40 @@ export const CSS_TEXT = `
 
 /* ── 「灵感来源」区（Post V1）：水贴 / Feed热帖 / 热点 ───────── */
 
-/* 后台抽「随便聊聊」时的占位：按钮不转圈，这里给一句提示 */
+/* 抽灵感时的忙碌态：转圈 + 秒表，与「生成帖子」按钮同款，但用深色 spinner */
+.xc-idea-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  min-height: 18px;
+}
+.xc-idea-head .xc-idea-title { margin-bottom: 0; }
+.xc-idea-busy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #536471;
+  font-variant-numeric: tabular-nums;
+}
+/* 白底上的 spinner（.xc-spin 原本是给黑底按钮用的白色圈） */
+.xc-spin.dark {
+  width: 12px;
+  height: 12px;
+  border-color: rgba(15, 20, 25, 0.25);
+  border-top-color: #0f1419;
+  margin-right: 0;
+  vertical-align: 0;
+}
 .xc-idea-loading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   font-size: 13px;
   color: #8b98a5;
   padding: 12px 0 4px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 状态 B：出结果后灵感区收起，只留这一行入口 */
