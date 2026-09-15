@@ -248,6 +248,30 @@ export const CSS_TEXT = `
 .xc-idea-chip.active,
 .xc-idea-chip.active:hover { background: #0f1419; color: #ffffff; }
 
+/* 「换一批」：推到行尾，只在「水贴」tab 出现 */
+.xc-idea-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  /* 抵消自身右内边距，让文字右缘与内容区对齐 */
+  margin-right: -10px;
+  border: none;
+  background: transparent;
+  color: #536471;
+  border-radius: 9999px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.xc-idea-refresh svg { flex-shrink: 0; }
+.xc-idea-refresh:hover:not(:disabled) { background: #f7f9f9; color: #0f1419; }
+.xc-idea-refresh:disabled { opacity: 0.45; cursor: default; }
+
 /* 展开区（Feed热帖 / 热点） */
 .xc-idea-list {
   display: flex;

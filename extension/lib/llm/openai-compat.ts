@@ -340,13 +340,23 @@ function parseFullResponse(content: string, styles: StyleConfig[]): RawCandidate
 function toCandidates(
   raw: RawCandidate[],
   styles: StyleConfig[],
-  expected: string[]
+  expected: string[],
+  /**
+   * 强制按 expected 顺序贴标签（水贴用）。
+   * 保证「顶级认知 / 冷知识 / 扎心真相 各一条」不会被模型标串——
+   * 它只要按顺序产出三句，标签由我们盖。
+   */
+  forceStyle = false
 ): ReplyCandidate[] {
   const knownLabels = new Set(styles.map((s) => s.label));
   return raw.slice(0, MAX_TOTAL_REPLIES).map((r, i) => ({
     id: String(i + 1),
     // 模型给了合法风格名就用它，否则按用户配置的顺序兜底
-    style: r.style && knownLabels.has(r.style) ? r.style : expected[i] ?? styles[0].label,
+    style: forceStyle
+      ? expected[i] ?? styles[0].label
+      : r.style && knownLabels.has(r.style)
+        ? r.style
+        : expected[i] ?? styles[0].label,
     text: r.text.trim(),
   }));
 }
@@ -591,7 +601,7 @@ export class OpenAICompatProvider implements LLMProvider {
       }
       if (added) {
         if (!firstCandidateMs) firstCandidateMs = Date.now() - startedAt;
-        handlers.onPartial?.(toCandidates(raw, styles, expected));
+        handlers.onPartial?.(toCandidates(raw, styles, expected, ideaMode));
       }
     };
 
@@ -617,7 +627,7 @@ export class OpenAICompatProvider implements LLMProvider {
         // 环境不支持流式读取：退化为一次性读取
         const text = await response.text();
         clearTimeout(timer);
-        const candidates = toCandidates(parseFullResponse(text, styles), styles, expected);
+        const candidates = toCandidates(parseFullResponse(text, styles), styles, expected, ideaMode);
         if (candidates.length === 0) throw new Error('INVALID_LLM_RESPONSE');
         const elapsed = Date.now() - startedAt;
         handlers.onTiming?.({ ttfbMs: elapsed, firstContentMs: elapsed, firstCandidateMs: elapsed, totalMs: elapsed });
@@ -694,7 +704,7 @@ export class OpenAICompatProvider implements LLMProvider {
         if (plain.length > 0) {
           raw.push(...plain.slice(0, MAX_TOTAL_REPLIES));
           if (!firstCandidateMs) firstCandidateMs = Date.now() - startedAt;
-          handlers.onPartial?.(toCandidates(raw, styles, expected));
+          handlers.onPartial?.(toCandidates(raw, styles, expected, ideaMode));
         }
       }
       clearTimeout(timer);
@@ -714,7 +724,7 @@ export class OpenAICompatProvider implements LLMProvider {
       };
       handlers.onTiming?.(timing);
       console.debug('[X Copilot] stream timing', timing);
-      return toCandidates(raw, styles, expected);
+      return toCandidates(raw, styles, expected, ideaMode);
     } catch (e) {
       clearTimeout(timer);
       throw e;
@@ -760,7 +770,7 @@ export class OpenAICompatProvider implements LLMProvider {
     const content = data.choices?.[0]?.message?.content;
     if (!content) throw new Error('INVALID_LLM_RESPONSE');
 
-    const candidates = toCandidates(parseFullResponse(content, styles), styles, expected);
+    const candidates = toCandidates(parseFullResponse(content, styles), styles, expected, ideaMode);
     if (candidates.length === 0) throw new Error('INVALID_LLM_RESPONSE');
     return candidates;
   }

@@ -5,6 +5,8 @@ interface Props {
   /** 是否已填入（整行高亮 + 右侧变勾） */
   filled: boolean;
   onFill: (reply: ReplyCandidate) => void;
+  /** 悬停提示。水贴是"填进输入框"、帖子草稿是"填进发帖框"，口径不同 */
+  hint?: string;
 }
 
 /**
@@ -12,13 +14,13 @@ interface Props {
  * 上方小字风格标签，下方正文，右侧 chevron，**点整行即填入**。
  * （button 内只能用 phrasing content，所以子元素一律用 span + display:block）
  */
-export function CandidateRow({ candidate, filled, onFill }: Props) {
+export function CandidateRow({ candidate, filled, onFill, hint }: Props) {
   return (
     <button
       type="button"
       className={'xc-cand-row' + (filled ? ' filled' : '')}
       onClick={() => onFill(candidate)}
-      title={filled ? '已填入发帖框' : '点这一行填入发帖框'}
+      title={hint ?? (filled ? '已填入发帖框' : '点这一行填入发帖框')}
     >
       <span className="xc-cand-row-body">
         <span className="xc-cand-row-style">{candidate.style}</span>

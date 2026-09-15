@@ -51,8 +51,8 @@ const CLEAN_AUTO_ENABLED = false;
 const POST_SPIKE_TEXT =
   '【X Copilot 发帖框测试】这段文字用于验证主发帖框能否被写入，请手动删除，不要发送。';
 
-/** 「灵感」区展开的来源。随手发不展开列表——点了直接生成 */
-type IdeaSource = 'hot' | 'trend';
+/** 「灵感来源」区的三个 tab（默认「水贴」；水贴内容是自动生成的，不是"点出来"的） */
+type IdeaTab = 'idea' | 'hot' | 'trend';
 
 /**
  * 发帖选题：从「热帖 / 趋势」点选的一条。
@@ -75,10 +75,15 @@ export function App() {
   const postComposerFocusedRef = useRef<HTMLElement | null>(null);
   // 选题同样存 ref：runGenerate 读 ref 而不是 state，回调引用才能保持稳定
   const selectionRef = useRef<PostSelection | null>(null);
+  // 水贴是否已自动尝试过生成：失败后不再自动重试（否则 effect 会反复触发），「换一批」可手动重来
+  const ideaAttemptedRef = useRef(false);
   const [open, setOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
-  // Post V1「灵感」区：当前展开的来源 / 列表数据 / 已选中的选题
-  const [ideaSource, setIdeaSource] = useState<IdeaSource | null>(null);
+  // Post V1「灵感来源」区：当前 tab / 水贴三件套 / 列表数据 / 已选中的选题
+  const [ideaTab, setIdeaTab] = useState<IdeaTab>('idea');
+  // 水贴三件套独立存放：它是"灵感引子"，不该被「生成帖子」的候选挤掉
+  const [ideaItems, setIdeaItems] = useState<ReplyCandidate[]>([]);
+  const [filledIdeaId, setFilledIdeaId] = useState<string | null>(null);
   const [hotTweets, setHotTweets] = useState<TweetContext[]>([]);
   const [trends, setTrends] = useState<TrendItem[]>([]);
   const [selection, setSelection] = useState<PostSelection | null>(null);
@@ -172,6 +177,8 @@ export function App() {
       setProgress(undefined);
       setGenerating(true);
       setError(undefined);
+      // 水贴的结果写进独立一栏，不占用「生成帖子」的候选位
+      const writeResult = source === 'idea' ? setIdeaItems : setReplies;
       if (auto)
         setToast(currentMode === 'post' ? '正在为你起草帖子……' : '检测到新 Tweet，正在自动生成回复……');
       else if (source === 'idea') setToast('正在想几句随时能发的……');
@@ -196,12 +203,13 @@ export function App() {
           setProgress(msg.progress);
         } else if (msg.type === 'partial' && Array.isArray(msg.replies)) {
           // 逐条到达：先渲染出来，用户可以先看/先填
-          setReplies(msg.replies);
+          writeResult(msg.replies);
         } else if (msg.type === 'done' && Array.isArray(msg.replies)) {
           settled = true;
           activePortRef.current = null;
-          setReplies(msg.replies);
-          cacheRef.current.set(key, msg.replies);
+          writeResult(msg.replies);
+          // 水贴不进缓存："沿用已有的"靠 ideaItems 是否为空判断，不需要另存一份
+          if (source !== 'idea') cacheRef.current.set(key, msg.replies);
           if (msg.timing) setTiming(msg.timing);
           if (auto) setToast(currentMode === 'post' ? '帖子草稿已生成' : '回复已生成');
           else if (source === 'idea') setToast('已生成 3 条，点一条直接填入');
@@ -261,10 +269,9 @@ export function App() {
       setIntent('');
       setTiming(undefined);
       setProgress(undefined);
-      // 换帖 / 离开推文：上一份选题与展开的灵感列表都不再适用
+      // 换帖 / 离开推文：上一份选题不再适用（水贴三件套与推文无关，保留沿用）
       selectionRef.current = null;
       setSelection(null);
-      setIdeaSource(null);
       if (!t) {
         // Modal 关闭 / 离开 Tweet：取消在途请求，收起 Panel
         cancelGeneration();
@@ -399,16 +406,14 @@ export function App() {
       setError(undefined);
       setTiming(undefined);
       setProgress(undefined);
-      setIdeaSource(null);
     },
     [applyMode, tweet]
   );
 
-  /** 选中一条素材 → 设为选题。不自动生成，等用户点「生成帖子」 */
+  /** 选中一条素材 → 设为选题。不自动生成，等用户点「生成帖子」；列表保持不动，可再挑 */
   const chooseSelection = useCallback((next: PostSelection) => {
     selectionRef.current = next;
     setSelection(next);
-    setIdeaSource(null);
   }, []);
 
   const clearSelection = useCallback(() => {
@@ -438,38 +443,54 @@ export function App() {
     [chooseSelection]
   );
 
-  /** 「随手发」：走发帖链路，但用内置三件套 prompt（成品句，不走 postStyles） */
-  const generateIdeas = useCallback(() => {
+  /** 生成 / 重抽水贴三件套（顶级认知 / 冷知识 / 扎心真相 各一条，走内置 prompt） */
+  const loadIdeas = useCallback(() => {
     // 详情页 / 回复弹窗（有具体推文）不做发帖，跟「发帖」tab 的置灰口径一致
-    if (generating || tweetRef.current) return;
+    if (tweetRef.current) return;
     if (modeRef.current !== 'post') applyMode('post');
-    setIdeaSource(null);
-    void runGenerate(null, false, intent, 'idea');
-  }, [generating, intent, runGenerate, applyMode]);
+    void runGenerate(null, false, '', 'idea');
+  }, [runGenerate, applyMode]);
 
-  /** 展开 / 收起「热帖」：只扫当前已渲染的帖子，不滚动加载 */
-  const toggleHot = useCallback(() => {
-    if (ideaSource === 'hot') {
-      setIdeaSource(null);
-      return;
-    }
+  /** 「换一批」：三条同时重抽，仍然各来一条（不会同类堆叠） */
+  const reloadIdeas = useCallback(() => {
+    if (generating) return;
+    setFilledIdeaId(null);
+    loadIdeas();
+  }, [generating, loadIdeas]);
+
+  /** 切到「Feed热帖」：扫当前已渲染的帖子，不滚动加载 */
+  const selectHot = useCallback(() => {
+    setIdeaTab('hot');
     const list = collectTimelineTweets(5);
     setHotTweets(list);
-    setIdeaSource('hot');
     if (list.length === 0) setToast('当前页面没扫到帖子，往下滚一点再试');
-  }, [ideaSource]);
+  }, []);
 
-  /** 展开 / 收起「趋势」：读右侧栏已渲染的话题 */
-  const toggleTrends = useCallback(() => {
-    if (ideaSource === 'trend') {
-      setIdeaSource(null);
-      return;
-    }
+  /** 切到「热点」：读右侧栏已渲染的话题 */
+  const selectTrends = useCallback(() => {
+    setIdeaTab('trend');
     const list = collectTrends(10);
     setTrends(list);
-    setIdeaSource('trend');
     if (list.length === 0) setToast('没读到趋势栏，把浏览器窗口拉宽一点再试');
-  }, [ideaSource]);
+  }, []);
+
+  /** 点水贴里的一条 → 填进面板输入框（列表保持不动，可反复点其他两条覆盖） */
+  const useIdea = useCallback((item: ReplyCandidate) => {
+    setIntent(item.text);
+    setFilledIdeaId(item.id);
+  }, []);
+
+  // 打开面板 / 切回「水贴」时，若还没有三件套就自动生成一批；
+  // 已有则沿用（同一次会话反复开关面板不重复发请求），只有点「换一批」才重抽。
+  useEffect(() => {
+    if (!open || mode !== 'post' || ideaTab !== 'idea') return;
+    if (ideaItems.length > 0 || generating) return;
+    // 已经自动试过一次就不再试：生成失败时 generating 变回 false 会反复触发，
+    // 变成对着同一个错误打转。用户想重来可以点「换一批」。
+    if (ideaAttemptedRef.current) return;
+    ideaAttemptedRef.current = true;
+    loadIdeas();
+  }, [open, mode, ideaTab, ideaItems.length, generating, loadIdeas]);
 
   /** 把某条内容加入「永远隐藏此类」 */
   const rememberSignature = useCallback(async (sig: string) => {
@@ -684,10 +705,9 @@ export function App() {
               <div className="xc-idea-bar">
                 <button
                   type="button"
-                  className={'xc-idea-chip' + (ideaSource ? '' : ' active')}
-                  onClick={generateIdeas}
-                  disabled={generating}
-                  title="三句随时能发的成品：顶级认知 / 冷知识 / 扎心真相"
+                  className={'xc-idea-chip' + (ideaTab === 'idea' ? ' active' : '')}
+                  onClick={() => setIdeaTab('idea')}
+                  title="顶级认知 / 冷知识 / 扎心真相，各来一条"
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <rect x="4" y="4" width="16" height="16" rx="4" />
@@ -697,8 +717,8 @@ export function App() {
                 </button>
                 <button
                   type="button"
-                  className={'xc-idea-chip' + (ideaSource === 'hot' ? ' active' : '')}
-                  onClick={toggleHot}
+                  className={'xc-idea-chip' + (ideaTab === 'hot' ? ' active' : '')}
+                  onClick={selectHot}
                   title="当前页面上互动最高的几条帖子"
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -709,8 +729,8 @@ export function App() {
                 </button>
                 <button
                   type="button"
-                  className={'xc-idea-chip' + (ideaSource === 'trend' ? ' active' : '')}
-                  onClick={toggleTrends}
+                  className={'xc-idea-chip' + (ideaTab === 'trend' ? ' active' : '')}
+                  onClick={selectTrends}
                   title="X 右侧栏「正在流行」里的话题"
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -719,10 +739,39 @@ export function App() {
                   </svg>
                   <span>热点</span>
                 </button>
+                {ideaTab === 'idea' && (
+                  <button
+                    type="button"
+                    className="xc-idea-refresh"
+                    onClick={reloadIdeas}
+                    disabled={generating}
+                    title="三条同时重新抽（仍然各来一条）"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M3.2 12a8.8 8.8 0 1 0 2.6-6.2" />
+                      <path d="M3 4v5h5" />
+                    </svg>
+                    <span>换一批</span>
+                  </button>
+                )}
               </div>
             </div>
 
-            {ideaSource === 'hot' && (
+            {ideaTab === 'idea' && ideaItems.length > 0 && (
+              <div className="xc-cand-list">
+                {ideaItems.map((r) => (
+                  <CandidateRow
+                    key={r.id}
+                    candidate={r}
+                    filled={filledIdeaId === r.id}
+                    onFill={useIdea}
+                    hint="点这一行填进上方的输入框"
+                  />
+                ))}
+              </div>
+            )}
+
+            {ideaTab === 'hot' && (
               <div className="xc-idea-list">
                 {hotTweets.map((t, i) => (
                   <button
@@ -741,7 +790,7 @@ export function App() {
               </div>
             )}
 
-            {ideaSource === 'trend' && (
+            {ideaTab === 'trend' && (
               <div className="xc-idea-list">
                 {trends.map((t) => (
                   <button
