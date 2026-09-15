@@ -144,18 +144,21 @@ export const CSS_TEXT = `
 .xc-tweet-author { font-size: 12px; font-weight: 700; color: #0f1419; margin-bottom: 4px; }
 .xc-tweet-text { font-size: 13px; line-height: 1.5; color: #536471; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
-/* 无边框输入框：只靠占位文字与留白区分（对齐设计稿） */
+/* 输入框：细框线 + 12px 圆角。
+   之前按设计稿做成完全无边框，但在白面板上边界感太弱，改回细框（2026-09-15） */
 .xc-intent {
   width: 100%;
   margin-bottom: 14px;
-  padding: 10px 0;
-  border: none;
-  background: transparent;
+  padding: 10px 12px;
+  border: 1px solid #cfd9de;
+  border-radius: 12px;
+  background: #ffffff;
   color: #0f1419;
   font-size: 14px;
   font-family: inherit;
   line-height: 1.5;
   outline: none;
+  transition: border-color 0.15s ease;
   /* 多行输入：宽度固定，高度随文字增长（上限 132px，超出后内部滚动） */
   resize: none;
   overflow-y: auto;
@@ -166,6 +169,7 @@ export const CSS_TEXT = `
 .xc-intent::-webkit-scrollbar { width: 8px; }
 .xc-intent::-webkit-scrollbar-thumb { background: #cfd9de; border-radius: 4px; }
 .xc-intent::placeholder { color: #8b98a5; }
+.xc-intent:focus { border-color: #0f1419; }
 
 /* ── 「灵感来源」区（Post V1）：水贴 / Feed热帖 / 热点 ───────── */
 
