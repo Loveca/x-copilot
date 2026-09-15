@@ -315,12 +315,13 @@ export function App() {
   // 发帖入口：聚焦主发帖框 → 自动弹出面板（发帖模式，不自动生成）；离开发帖框/面板且不进面板/发帖框 → 收起。
   // 贴合用户意图：点开输入框才出面板，移开或关闭弹窗就当"不想发了"。详情页/回复弹窗（tweetRef 有值）下不自动开关。
   useEffect(() => {
-    // 焦点是否落在我们自己的 UI（shadow 内的面板）里：事件 retarget 后 relatedTarget 是 shadow host
+    // 节点是否在我们自己的 UI（shadow 面板）里。
+    // ⚠️ 不能用 getRootNode() instanceof ShadowRoot 判断 host——host 的 root 是 document，
+    // 那样 isOurs 恒为 false，「焦点进面板」的判断会一直失效，点哪儿面板都会被误关。
+    // 直接拿 host 引用做 contains（contains 会穿透 shadow DOM，覆盖 host 本身与内部所有节点）。
     const isOurs = (node: EventTarget | null): boolean => {
-      const el = node as Element | null;
-      if (!el || typeof el.getRootNode !== 'function') return false;
-      const root = el.getRootNode() as ShadowRoot | Document;
-      return root instanceof ShadowRoot && root.host === el && !!root.querySelector('.xc-panel');
+      const host = document.querySelector('x-copilot-root');
+      return !!host && node instanceof Node && host.contains(node);
     };
     const onFocusIn = (e: FocusEvent) => {
       const el = e.target as Element | null;
@@ -467,6 +468,7 @@ export function App() {
   /** 切到「Feed热帖」：扫当前已渲染的帖子，不滚动加载 */
   const selectHot = useCallback(() => {
     setIdeaTab('hot');
+    setIntent('');
     const list = collectTimelineTweets(5);
     setHotTweets(list);
     if (list.length === 0) setToast('当前页面没扫到帖子，往下滚一点再试');
@@ -475,6 +477,7 @@ export function App() {
   /** 切到「热点」：读右侧栏已渲染的话题 */
   const selectTrends = useCallback(() => {
     setIdeaTab('trend');
+    setIntent('');
     const list = collectTrends(10);
     setTrends(list);
     if (list.length === 0) setToast('没读到趋势栏，把浏览器窗口拉宽一点再试');
@@ -671,7 +674,10 @@ export function App() {
                 <button
                   type="button"
                   className={'xc-idea-chip' + (ideaTab === 'idea' ? ' active' : '')}
-                  onClick={() => setIdeaTab('idea')}
+                  onClick={() => {
+                    setIdeaTab('idea');
+                    setIntent('');
+                  }}
                   title="顶级认知 / 冷知识 / 扎心真相，各来一条"
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

@@ -2,10 +2,16 @@ import { X_SELECTORS } from './selectors';
 import type { TrendItem } from '@/types';
 
 /**
- * 分类标签的形状，如 "Trending in Technology" / "Trending" / "Trending with #A, #B"。
+ * 分类标签的判断。X 的中文分类行有两种格式：
+ * - 以标识开头："Trending in Technology" / "正在流行" / "流行于科技"
+ * - 分类词在前："美食 趋势" / "美食 · 趋势" / "日本 的趋势" / "娱乐 趋势"
  * 这行小字说明「在哪个领域流行」，不是话题本身，要滤掉。
+ * 长度限制是护栏：避免把本身就是话题的"AI趋势"这类短词误杀。
  */
-const CATEGORY_RE = /^(trending|trends? in|trending with|正在流行|流行于|趋势|熱門)/i;
+const isCategory = (t: string): boolean =>
+  /^(trending|trends?\s+in|trending\s+with|正在流行|流行于|熱門)/i.test(t) ||
+  /的趋势$/.test(t) ||
+  (t.length <= 22 && /趋势$/.test(t));
 
 /** 帖子数那行，如 "12.3K posts" / "1.2万 条帖子" */
 const POSTS_RE = /\bposts?\b|帖子|条帖|推文/i;
@@ -34,9 +40,9 @@ export function collectTrends(limit = 10): TrendItem[] {
       .filter((t) => t.length > 0);
     if (spans.length === 0) continue;
 
-    const category = spans.find((t) => CATEGORY_RE.test(t));
+    const category = spans.find((t) => isCategory(t));
     const topic = spans.find(
-      (t) => !CATEGORY_RE.test(t) && !POSTS_RE.test(t) && t.length <= 80
+      (t) => !isCategory(t) && !POSTS_RE.test(t) && t.length <= 80
     );
     if (!topic || seen.has(topic)) continue;
 

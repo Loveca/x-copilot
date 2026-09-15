@@ -102,9 +102,21 @@ function extractArticle(article: Element, id?: string, handleHint?: string): Twe
   return context;
 }
 
+/** X 在广告推文上放 "Promoted"（英文）/ "广告"（中文）标识，精确匹配整条小字，避免正文误判 */
+function isPromoted(article: HTMLElement): boolean {
+  const spans = article.querySelectorAll('span');
+  const n = Math.min(spans.length, 10);
+  for (let i = 0; i < n; i++) {
+    const t = spans[i].textContent?.trim();
+    if (t === 'Promoted' || t === '广告') return true;
+  }
+  return false;
+}
+
 /**
  * 时间线语境：当前页面可见帖子中互动量最高的若干条。
  * Phase 2 发帖模式用它给「热点型 / 反向型」提供"现在大家在聊什么"的背景。
+ * 过滤掉 Promoted 广告推文——广告互动数虚高，排前面会挤掉真实热帖。
  */
 export function collectTimelineTweets(limit = 5): TweetContext[] {
   const articles = [...document.querySelectorAll<HTMLElement>(X_SELECTORS.tweetArticle)];
@@ -112,6 +124,7 @@ export function collectTimelineTweets(limit = 5): TweetContext[] {
   const list: TweetContext[] = [];
 
   articles.forEach((a) => {
+    if (isPromoted(a)) return;
     const t = extractArticle(a);
     if (!t.text) return;
     const key = t.id ?? t.text.slice(0, 60);
