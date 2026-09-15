@@ -352,8 +352,10 @@ export function App() {
       const leavingOurs = isOurs(el);
       if (!leavingPost && !leavingOurs) return; // 不是从发帖框/面板移开
       const related = e.relatedTarget as Element | null;
+      // 焦点只是失焦到 body / null（典型：点「生成帖子」后按钮变 disabled 被浏览器强制失焦），
+      // 这不是"点了页面别处"，面板必须保持展开 —— 否则刚发起生成面板就没了
+      if (!related || related === document.body) return;
       const goingPost = (() => {
-        if (!related) return false;
         const c = findPostComposer();
         return !!c && (c === related || c.contains(related));
       })();
