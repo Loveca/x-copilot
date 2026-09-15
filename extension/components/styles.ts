@@ -170,6 +170,159 @@ export const CSS_TEXT = `
 .xc-intent::placeholder { color: #8b98a5; }
 .xc-intent:focus { border-color: #0f1419; }
 
+/* ── 「灵感」区（Post V1）：随手发 / 热帖 / 趋势 ───────────── */
+
+/* 已选中的选题：单值，可清除 */
+.xc-selection {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 6px 6px 6px 10px;
+  border: 1px solid #cfd9de;
+  border-radius: 10px;
+  background: #f7f9f9;
+}
+.xc-selection-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffffff;
+  background: #0f1419;
+  border-radius: 9999px;
+  padding: 2px 7px;
+}
+.xc-selection-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: #0f1419;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.xc-selection-clear {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: #8b98a5;
+  font-size: 12px;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 9999px;
+  cursor: pointer;
+}
+.xc-selection-clear:hover { background: #eff3f4; color: #0f1419; }
+
+/* 来源切换行 */
+.xc-idea-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.xc-idea-title {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #8b98a5;
+  margin-right: 2px;
+}
+.xc-idea-chip {
+  border: 1px solid #cfd9de;
+  background: #ffffff;
+  color: #536471;
+  border-radius: 9999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.xc-idea-chip:hover:not(:disabled) { background: #f7f9f9; color: #0f1419; border-color: #0f1419; }
+.xc-idea-chip:disabled { opacity: 0.45; cursor: default; }
+.xc-idea-chip.active { background: #0f1419; border-color: #0f1419; color: #ffffff; }
+
+/* 展开区（热帖列表 / 趋势列表） */
+.xc-idea-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.xc-idea-list::-webkit-scrollbar { width: 6px; }
+.xc-idea-list::-webkit-scrollbar-thumb { background: #cfd9de; border-radius: 3px; }
+
+.xc-idea-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid #eff3f4;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.xc-idea-item:hover { background: #f7f9f9; border-color: #cfd9de; }
+.xc-idea-item-meta { font-size: 11px; font-weight: 700; color: #536471; margin-bottom: 3px; }
+.xc-idea-item-text {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #0f1419;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.xc-trend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid #eff3f4;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.xc-trend-item:hover { background: #f7f9f9; border-color: #cfd9de; }
+.xc-trend-rank {
+  flex-shrink: 0;
+  min-width: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #8b98a5;
+}
+.xc-trend-topic {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f1419;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.xc-trend-cat {
+  flex-shrink: 0;
+  max-width: 96px;
+  font-size: 10px;
+  color: #8b98a5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .xc-generate-btn {
   width: 100%;
   border: none;

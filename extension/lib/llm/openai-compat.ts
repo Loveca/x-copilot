@@ -89,7 +89,8 @@ function buildPostPrompt(
   styles: StyleConfig[],
   intent?: string,
   contextTweets: TweetContext[] = [],
-  inspiration?: TweetContext | null
+  inspiration?: TweetContext | null,
+  topic?: string
 ): string {
   const total = styles.reduce((sum, s) => sum + s.count, 0);
   const styleLines = styles
@@ -113,6 +114,14 @@ function buildPostPrompt(
   if (intent) {
     parts.push('', `The user's own idea (highest priority — every line must grow out of it): "${intent}"`);
   }
+  if (topic) {
+    parts.push(
+      '',
+      'The user picked something to write about. Write an independent post about THIS',
+      '(never reply to it, even if it reads like a post):',
+      topic
+    );
+  }
   if (inspiration?.text) {
     parts.push(
       '',
@@ -128,6 +137,46 @@ function buildPostPrompt(
     contextTweets.forEach((t) => {
       parts.push(`- ${t.authorHandle ?? t.author ?? 'someone'}: ${t.text.slice(0, 180)}`);
     });
+  }
+  return parts.join('\n');
+}
+
+/**
+ * 「随手发」（水贴三件套）固定的三类。
+ * 只在 idea 模式内部用于校验兜底与候选分组，不进设置页、不参与 postStyles 配置，
+ * 因此用户把所有发帖风格都禁用也不影响随手发。
+ */
+const IDEA_STYLES: StyleConfig[] = [
+  { key: 'idea-insight', label: '顶级认知', desc: '反直觉但站得住的判断', enabled: true, count: 1 },
+  { key: 'idea-trivia', label: '冷知识', desc: '具体、可核对的小事实', enabled: true, count: 1 },
+  { key: 'idea-truth', label: '扎心真相', desc: '戳痛点但不说教的实话', enabled: true, count: 1 },
+];
+
+/**
+ * 「随手发」的 Prompt。与发帖 prompt 的差别：不需要主题、不需要立论，
+ * 只要三句"随时能发、跟当下无关"的成品。
+ */
+function buildIdeaPrompt(intent?: string): string {
+  const parts = [
+    'Write 3 standalone short X posts for a real person to publish.',
+    'They are fillers — posts that work at any time, with no news hook and no reply to anyone.',
+    '',
+    'One line per category, in this exact order:',
+    `1. ${IDEA_STYLES[0].label} — a counter-intuitive but defensible judgement, in one sentence.`,
+    `2. ${IDEA_STYLES[1].label} — a specific, checkable fact.`,
+    `3. ${IDEA_STYLES[2].label} — an uncomfortable truth stated plainly: no lecturing, no moralising.`,
+    '',
+    'Rules:',
+    '1. Under 120 characters each. Match the language of the user input.',
+    '2. Sound like a person, not a brand: no hashtags, no emoji spam, no call to follow.',
+    `3. For ${IDEA_STYLES[1].label}: only state a fact you are confident is true and checkable.`,
+    '   If unsure about one, pick a different fact. Never guess or half-remember.',
+    '4. Do not mention that these were generated, and add no commentary of your own.',
+    '5. Output ONLY one JSON object per line, no array, no code fences, no extra text:',
+    '   {"style":"冷知识","text":"..."}',
+  ];
+  if (intent) {
+    parts.push('', `The user would like them to relate to this idea: "${intent}"`);
   }
   return parts.join('\n');
 }
@@ -307,21 +356,30 @@ function resolveGeneration(options?: GenerateOptions): {
   expected: string[];
   intent?: string;
   mode: 'reply' | 'post';
+  /** 随手发：走内置三件套，不读 postStyles，也不带任何页面语境 */
+  ideaMode: boolean;
+  topic?: string;
   contextTweets: TweetContext[];
 } {
   const mode: 'reply' | 'post' = options?.mode === 'post' ? 'post' : 'reply';
+  const ideaMode = options?.source === 'idea';
   const fallback = mode === 'post' ? DEFAULT_POST_STYLES : DEFAULT_STYLES;
-  const styles = (options?.styles?.length ? options.styles : fallback).filter(
-    (s) => s.enabled && s.count > 0
-  );
+  // 随手发的三类是内置的：不受「用户把所有发帖风格都禁用了」影响
+  const styles = ideaMode
+    ? IDEA_STYLES
+    : (options?.styles?.length ? options.styles : fallback).filter(
+        (s) => s.enabled && s.count > 0
+      );
   if (styles.length === 0) {
     throw new Error('NO_STYLES_ENABLED');
   }
   return {
     mode,
+    ideaMode,
     styles,
     expected: expectedStyleSequence(styles),
     intent: options?.intent?.trim().slice(0, 300) || undefined,
+    topic: options?.topic?.trim().slice(0, 200) || undefined,
     contextTweets: options?.contextTweets ?? [],
   };
 }
@@ -351,6 +409,10 @@ export class OpenAICompatProvider implements LLMProvider {
   private usedImageCount = 0;
   /** 生成模式：reply = 回复；post = 写自己的帖子（Phase 2） */
   private mode: 'reply' | 'post' = 'reply';
+  /** 随手发模式：用三件套 prompt，忽略选题与页面语境 */
+  private ideaMode = false;
+  /** 发帖选题（面板上从「热帖 / 趋势」点选的那条） */
+  private topic: string | undefined;
   /** 帖子模式的时间线语境 */
   private contextTweets: TweetContext[] = [];
 
@@ -375,9 +437,10 @@ export class OpenAICompatProvider implements LLMProvider {
     includeProviderParams = true,
     images: string[] = []
   ): string {
-    const prompt =
-      this.mode === 'post'
-        ? buildPostPrompt(styles, intent, this.contextTweets, context)
+    const prompt = this.ideaMode
+      ? buildIdeaPrompt(intent)
+      : this.mode === 'post'
+        ? buildPostPrompt(styles, intent, this.contextTweets, context, this.topic)
         : buildPrompt(context as TweetContext, styles, intent, images.length > 0);
     // 多模态消息：文字 + image_url 内容块（图片只能出现在 user 消息里，这是各家的共同约束）
     const content =
@@ -478,8 +541,11 @@ export class OpenAICompatProvider implements LLMProvider {
     options: GenerateOptions | undefined,
     handlers: LLMStreamHandlers
   ): Promise<ReplyCandidate[]> {
-    const { styles, expected, intent, mode, contextTweets } = resolveGeneration(options);
+    const { styles, expected, intent, mode, ideaMode, topic, contextTweets } =
+      resolveGeneration(options);
     this.mode = mode;
+    this.ideaMode = ideaMode;
+    this.topic = topic;
     this.contextTweets = contextTweets;
     const imageDataUrls = (options?.imageDataUrls ?? []).slice(0, MAX_VISION_IMAGES);
     const controller = new AbortController();
@@ -660,8 +726,11 @@ export class OpenAICompatProvider implements LLMProvider {
     context: TweetContext | null,
     options?: GenerateOptions
   ): Promise<ReplyCandidate[]> {
-    const { styles, expected, intent, mode, contextTweets } = resolveGeneration(options);
+    const { styles, expected, intent, mode, ideaMode, topic, contextTweets } =
+      resolveGeneration(options);
     this.mode = mode;
+    this.ideaMode = ideaMode;
+    this.topic = topic;
     this.contextTweets = contextTweets;
     const imageDataUrls = (options?.imageDataUrls ?? []).slice(0, MAX_VISION_IMAGES);
     const controller = new AbortController();

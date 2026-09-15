@@ -8,6 +8,7 @@ import {
 import { classifyTweet, signature } from '@/lib/content/x/clean-classifier';
 import { hideTweet, resetAllHidden } from '@/lib/content/x/clean-hider';
 import { findReplyComposer, findPostComposer, isPostButtonEnabled } from '@/lib/content/x/composer-detector';
+import { collectTrends } from '@/lib/content/x/trend-detector';
 import { fillReplyComposer, fillComposer } from '@/lib/content/x/fill';
 import {
   DEFAULT_UI_CONFIG,
@@ -15,7 +16,7 @@ import {
   UI_CONFIG_STORAGE_KEY,
   normalizeUIConfig,
 } from '@/lib/config';
-import type { ReplyCandidate, TweetContext, UIConfig } from '@/types';
+import type { ReplyCandidate, TrendItem, TweetContext, UIConfig } from '@/types';
 import type { LLMStreamProgress, LLMStreamTiming } from '@/lib/llm/provider';
 import { FloatingButton } from './FloatingButton';
 import { Panel, type CopilotMode } from './Panel';
@@ -50,6 +51,18 @@ const CLEAN_AUTO_ENABLED = false;
 const POST_SPIKE_TEXT =
   '【X Copilot 发帖框测试】这段文字用于验证主发帖框能否被写入，请手动删除，不要发送。';
 
+/** 「灵感」区展开的来源。随手发不展开列表——点了直接生成 */
+type IdeaSource = 'hot' | 'trend';
+
+/**
+ * 发帖选题：从「热帖 / 趋势」点选的一条。
+ * label 只用于面板展示（可以截断），topic 才是真正送进 prompt 的文本。
+ */
+interface PostSelection {
+  label: string;
+  topic: string;
+}
+
 /** 按风格把候选分组（保持首次出现的顺序），同风格多条合并进一张卡 */
 function groupByStyle(replies: ReplyCandidate[]): Array<{ style: string; items: ReplyCandidate[] }> {
   const groups: Array<{ style: string; items: ReplyCandidate[] }> = [];
@@ -76,8 +89,15 @@ export function App() {
   const tweetRef = useRef<TweetContext | null>(null);
   // 记录当前聚焦的主发帖框元素，供 focusout 判断「是否从发帖框移开」
   const postComposerFocusedRef = useRef<HTMLElement | null>(null);
+  // 选题同样存 ref：runGenerate 读 ref 而不是 state，回调引用才能保持稳定
+  const selectionRef = useRef<PostSelection | null>(null);
   const [open, setOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
+  // Post V1「灵感」区：当前展开的来源 / 列表数据 / 已选中的选题
+  const [ideaSource, setIdeaSource] = useState<IdeaSource | null>(null);
+  const [hotTweets, setHotTweets] = useState<TweetContext[]>([]);
+  const [trends, setTrends] = useState<TrendItem[]>([]);
+  const [selection, setSelection] = useState<PostSelection | null>(null);
   const [replies, setReplies] = useState<ReplyCandidate[]>([]);
   const [error, setError] = useState<string | undefined>();
   const [toast, setToast] = useState<string | undefined>();
@@ -101,9 +121,10 @@ export function App() {
   const autoGenerateRef = useRef(DEFAULT_UI_CONFIG.autoGenerate);
   const uiConfigRef = useRef<UIConfig>(normalizeUIConfig());
 
-  // 缓存键：模式 / Tweet / 意图 三者都要区分（回复结果与发帖草稿不能混）
-  const cacheKey = (m: CopilotMode, id?: string, intentText = '') =>
-    `${m}::${id ?? 'no-id'}::${intentText.trim()}`;
+  // 缓存键：模式 / Tweet / 意图 / 选题 / 来源 都要区分
+  // （回复结果与发帖草稿不能混；换了选题、或走「随手发」也不能命中上一份）
+  const cacheKey = (m: CopilotMode, id?: string, intentText = '', topicText = '', tag = '') =>
+    `${m}::${id ?? 'no-id'}::${intentText.trim()}::${topicText}::${tag}`;
 
   useEffect(() => {
     const apply = (cfg?: Partial<UIConfig>) => {
@@ -136,11 +157,18 @@ export function App() {
 
   // 生成候选（流式：候选一到就先渲染；手动与自动触发共用；回复 / 发帖两种模式）
   const runGenerate = useCallback(
-    async (target: TweetContext | null, auto: boolean, intentText = '') => {
+    async (
+      target: TweetContext | null,
+      auto: boolean,
+      intentText = '',
+      /** 'idea' = 面板上的「随手发」：三件套成品句，忽略选题与页面语境 */
+      source?: 'idea'
+    ) => {
       const cleanIntent = intentText.trim();
       const currentMode = modeRef.current;
+      const topic = source === 'idea' ? '' : selectionRef.current?.topic ?? '';
       // 缓存键带上模式：同一条推文的回复结果与发帖草稿不能混
-      const key = cacheKey(currentMode, target?.id, cleanIntent);
+      const key = cacheKey(currentMode, target?.id, cleanIntent, topic, source ?? '');
 
       // 缓存只用于「自动弹出时避免重复请求」。
       // 手动点「生成回复 / 重新生成 / 按这个想法生成」一律真发请求 ——
@@ -162,6 +190,7 @@ export function App() {
       setError(undefined);
       if (auto)
         setToast(currentMode === 'post' ? '正在为你起草帖子……' : '检测到新 Tweet，正在自动生成回复……');
+      else if (source === 'idea') setToast('正在想几句随时能发的……');
 
       const port = browser.runtime.connect({ name: GENERATE_PORT });
       activePortRef.current = port;
@@ -191,6 +220,7 @@ export function App() {
           cacheRef.current.set(key, msg.replies);
           if (msg.timing) setTiming(msg.timing);
           if (auto) setToast(currentMode === 'post' ? '帖子草稿已生成' : '回复已生成');
+          else if (source === 'idea') setToast('已生成 3 条，点「填入」挑一条');
           setGenerating(false);
           port.disconnect();
         } else if (msg.type === 'error') {
@@ -214,8 +244,14 @@ export function App() {
         mode: currentMode,
         intent: cleanIntent || undefined,
       };
-      // 发帖模式额外带上时间线语境（当前页面互动最高的几条）
-      if (currentMode === 'post') options.contextTweets = collectTimelineTweets(5);
+      if (source === 'idea') {
+        // 随手发：三件套成品句，不带任何页面语境
+        options.source = 'idea';
+      } else if (currentMode === 'post') {
+        // 发帖模式额外带上时间线语境（当前页面互动最高的几条）
+        options.contextTweets = collectTimelineTweets(5);
+        if (topic) options.topic = topic;
+      }
       port.postMessage({ tweet: target, options });
     },
     []
@@ -241,6 +277,10 @@ export function App() {
       setIntent('');
       setTiming(undefined);
       setProgress(undefined);
+      // 换帖 / 离开推文：上一份选题与展开的灵感列表都不再适用
+      selectionRef.current = null;
+      setSelection(null);
+      setIdeaSource(null);
       if (!t) {
         // Modal 关闭 / 离开 Tweet：取消在途请求，收起 Panel
         cancelGeneration();
@@ -375,9 +415,77 @@ export function App() {
       setError(undefined);
       setTiming(undefined);
       setProgress(undefined);
+      setIdeaSource(null);
     },
     [applyMode, tweet]
   );
+
+  /** 选中一条素材 → 设为选题。不自动生成，等用户点「生成帖子」 */
+  const chooseSelection = useCallback((next: PostSelection) => {
+    selectionRef.current = next;
+    setSelection(next);
+    setIdeaSource(null);
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    selectionRef.current = null;
+    setSelection(null);
+  }, []);
+
+  /** 热帖里点一条 → 选题取该帖正文（截断，别把整条塞进 prompt） */
+  const pickHot = useCallback(
+    (t: TweetContext) => {
+      const head = t.text.replace(/\s+/g, ' ').trim();
+      chooseSelection({
+        label: `${t.authorHandle ?? t.author ?? '某条帖子'}：${head.slice(0, 26)}${
+          head.length > 26 ? '…' : ''
+        }`,
+        topic: head.slice(0, 160),
+      });
+    },
+    [chooseSelection]
+  );
+
+  /** 趋势里点一个话题 → 选题就是话题名本身 */
+  const pickTrend = useCallback(
+    (t: TrendItem) => {
+      chooseSelection({ label: t.topic, topic: t.topic });
+    },
+    [chooseSelection]
+  );
+
+  /** 「随手发」：走发帖链路，但用内置三件套 prompt（成品句，不走 postStyles） */
+  const generateIdeas = useCallback(() => {
+    // 详情页 / 回复弹窗（有具体推文）不做发帖，跟「发帖」tab 的置灰口径一致
+    if (generating || tweetRef.current) return;
+    if (modeRef.current !== 'post') applyMode('post');
+    setIdeaSource(null);
+    void runGenerate(null, false, intent, 'idea');
+  }, [generating, intent, runGenerate, applyMode]);
+
+  /** 展开 / 收起「热帖」：只扫当前已渲染的帖子，不滚动加载 */
+  const toggleHot = useCallback(() => {
+    if (ideaSource === 'hot') {
+      setIdeaSource(null);
+      return;
+    }
+    const list = collectTimelineTweets(5);
+    setHotTweets(list);
+    setIdeaSource('hot');
+    if (list.length === 0) setToast('当前页面没扫到帖子，往下滚一点再试');
+  }, [ideaSource]);
+
+  /** 展开 / 收起「趋势」：读右侧栏已渲染的话题 */
+  const toggleTrends = useCallback(() => {
+    if (ideaSource === 'trend') {
+      setIdeaSource(null);
+      return;
+    }
+    const list = collectTrends(10);
+    setTrends(list);
+    setIdeaSource('trend');
+    if (list.length === 0) setToast('没读到趋势栏，把浏览器窗口拉宽一点再试');
+  }, [ideaSource]);
 
   /** 把某条内容加入「永远隐藏此类」 */
   const rememberSignature = useCallback(async (sig: string) => {
@@ -545,6 +653,92 @@ export function App() {
           />
         )}
 
+        {mode === 'post' && (
+          <>
+            {selection && (
+              <div className="xc-selection">
+                <span className="xc-selection-tag">选题</span>
+                <span className="xc-selection-text" title={selection.label}>
+                  {selection.label}
+                </span>
+                <button
+                  type="button"
+                  className="xc-selection-clear"
+                  onClick={clearSelection}
+                  title="清除选题"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            <div className="xc-idea-bar">
+              <span className="xc-idea-title">灵感</span>
+              <button
+                type="button"
+                className="xc-idea-chip"
+                onClick={generateIdeas}
+                disabled={generating}
+                title="三句随时能发的成品：顶级认知 / 冷知识 / 扎心真相"
+              >
+                🌊 随手发
+              </button>
+              <button
+                type="button"
+                className={'xc-idea-chip' + (ideaSource === 'hot' ? ' active' : '')}
+                onClick={toggleHot}
+                title="当前页面上互动最高的几条帖子"
+              >
+                🔥 热帖
+              </button>
+              <button
+                type="button"
+                className={'xc-idea-chip' + (ideaSource === 'trend' ? ' active' : '')}
+                onClick={toggleTrends}
+                title="X 右侧栏「正在流行」里的话题"
+              >
+                📈 趋势
+              </button>
+            </div>
+
+            {ideaSource === 'hot' && (
+              <div className="xc-idea-list">
+                {hotTweets.map((t, i) => (
+                  <button
+                    key={t.id ?? i}
+                    type="button"
+                    className="xc-idea-item"
+                    onClick={() => pickHot(t)}
+                  >
+                    <div className="xc-idea-item-meta">
+                      {t.authorHandle ?? t.author ?? '未知'} · ♥ {t.likeCount ?? 0} · 回复{' '}
+                      {t.replyCount ?? 0}
+                    </div>
+                    <div className="xc-idea-item-text">{t.text.slice(0, 90)}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {ideaSource === 'trend' && (
+              <div className="xc-idea-list">
+                {trends.map((t) => (
+                  <button
+                    key={t.topic}
+                    type="button"
+                    className="xc-trend-item"
+                    onClick={() => pickTrend(t)}
+                  >
+                    <span className="xc-trend-rank">{t.rank}</span>
+                    <span className="xc-trend-topic">{t.topic}</span>
+                    {t.category ? <span className="xc-trend-cat">{t.category}</span> : null}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
         <button
           className="xc-generate-btn"
           onClick={() => runGenerate(tweet, false, intent)}
@@ -557,6 +751,8 @@ export function App() {
             </>
           ) : intent.trim() ? (
             '按这个想法生成'
+          ) : selection ? (
+            '按这个选题生成'
           ) : replies.length > 0 ? (
             '重新生成'
           ) : mode === 'post' ? (

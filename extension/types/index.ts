@@ -17,6 +17,16 @@ export interface TweetContext {
   images?: string[];
 }
 
+/** X 右侧栏趋势模块里读出的一条话题（Post V1「趋势」来源） */
+export interface TrendItem {
+  /** 话题名，可能是 #OpenAI 这种带井号的 */
+  topic: string;
+  /** 分类标签（如 "Trending in Technology"）；X 没给就为空 */
+  category?: string;
+  /** 序号（1 起）—— 趋势本来就是按热度排好的，直接用这个顺序 */
+  rank?: number;
+}
+
 export interface ReplyCandidate {
   id: string;
   style: string;
@@ -45,6 +55,13 @@ export interface GenerateOptions {
   imageDataUrls?: string[];
   /** 时间线语境：当前页面互动较高的若干条帖子（发帖模式的热点型用） */
   contextTweets?: TweetContext[];
+  /** 发帖选题：用户从「热帖 / 趋势」里点的那条，生成时围绕它写（可选） */
+  topic?: string;
+  /**
+   * 发帖来源。'idea' = 面板上的「随手发」（水贴三件套）：
+   * 生成三句随时能发的成品短句，不走 postStyles，也不带任何页面语境。
+   */
+  source?: 'idea';
 }
 
 export interface LLMConfig {

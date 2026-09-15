@@ -33,6 +33,13 @@ export const X_SELECTORS = {
   postComposer: 'div[contenteditable="true"][role="textbox"][data-testid^="tweetTextarea"]',
   /** 发帖按钮。用于验证「X 是否认账」——填入后它应从 disabled 变为可用 */
   postButton: '[data-testid="tweetButton"], [data-testid="tweetButtonInline"]',
+  /**
+   * 右侧栏容器。X 的趋势模块（"正在流行"）只在窗口够宽时渲染，
+   * 窄窗口下整个 sidebarColumn 都不存在——抓不到是正常情况，要有降级提示。
+   */
+  sidebarColumn: '[data-testid="sidebarColumn"]',
+  /** 右侧栏里的一条趋势条目 */
+  trend: '[data-testid="trend"]',
 } as const;
 
 /** 主发帖框的 aria-label 关键词（与回复框区分） */
