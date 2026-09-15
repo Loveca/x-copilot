@@ -173,6 +173,13 @@ export const CSS_TEXT = `
 
 /* ── 「灵感来源」区（Post V1）：水贴 / Feed热帖 / 热点 ───────── */
 
+/* 后台抽「随便聊聊」时的占位：按钮不转圈，这里给一句提示 */
+.xc-idea-loading {
+  font-size: 13px;
+  color: #8b98a5;
+  padding: 12px 0 4px;
+}
+
 /* 状态 B：出结果后灵感区收起，只留这一行入口 */
 .xc-idea-back {
   display: block;

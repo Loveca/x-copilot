@@ -85,6 +85,9 @@ export function App() {
   const ideaAttemptedRef = useRef(false);
   const [open, setOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
+  /** 当前在跑的是哪一路：'idea' = 后台自动抽「随便聊聊」，'main' = 用户主动点生成。
+   *  只有 'main' 才在按钮上转圈计时——自动抽灵感不该抢「生成帖子」的状态。 */
+  const [genSource, setGenSource] = useState<'main' | 'idea' | null>(null);
   // Post V1「灵感来源」区：当前 tab / 水贴三件套 / 列表数据 / 已选中的选题
   const [ideaTab, setIdeaTab] = useState<IdeaTab>('idea');
   // 水贴三件套独立存放：它是"灵感引子"，不该被「生成帖子」的候选挤掉
@@ -183,6 +186,7 @@ export function App() {
       setElapsedMs(0);
       setProgress(undefined);
       setGenerating(true);
+      setGenSource(source === 'idea' ? 'idea' : 'main');
       setError(undefined);
       // 水贴的结果写进独立一栏，不占用「生成帖子」的候选位
       const writeResult = source === 'idea' ? setIdeaItems : setReplies;
@@ -223,12 +227,14 @@ export function App() {
           if (currentMode === 'post' && source !== 'idea') setIdeaCollapsed(true);
           else if (source === 'idea') setToast('已生成 3 条，点一条直接填入');
           setGenerating(false);
+          setGenSource(null);
           port.disconnect();
         } else if (msg.type === 'error') {
           settled = true;
           activePortRef.current = null;
           setError(friendlyError(new Error(msg.message ?? '')));
           setGenerating(false);
+          setGenSource(null);
           port.disconnect();
         }
       });
@@ -238,6 +244,7 @@ export function App() {
         // 连接意外中断（如 Service Worker 被回收）
         activePortRef.current = null;
         setGenerating(false);
+        setGenSource(null);
         setError('生成中断，请重试。');
       });
 
@@ -264,6 +271,7 @@ export function App() {
     activePortRef.current?.disconnect();
     activePortRef.current = null;
     setGenerating(false);
+    setGenSource(null);
   }, []);
 
   // Tweet 切换：自动弹出 Panel + 自动生成（缓存命中则直接展示，不重复请求）
@@ -689,6 +697,10 @@ export function App() {
               </div>
             </div>
 
+            {ideaTab === 'idea' && ideaItems.length === 0 && generating && genSource === 'idea' && (
+              <div className="xc-idea-loading">正在想几句……</div>
+            )}
+
             {ideaTab === 'idea' && ideaItems.length > 0 && (
               <div className="xc-cand-list">
                 {ideaItems.map((r) => (
@@ -768,7 +780,7 @@ export function App() {
             (mode === 'post' && !intent.trim())
           }
         >
-          {generating ? (
+          {generating && genSource !== 'idea' ? (
             <>
               <span className="xc-spin" />
               正在生成 {elapsedMs > 800 ? `${(elapsedMs / 1000).toFixed(1)}s` : '……'}
@@ -791,7 +803,7 @@ export function App() {
 
         {error && <div className="xc-error">{error}</div>}
 
-        {debugTiming && generating && (
+        {debugTiming && generating && genSource !== 'idea' && (
           <div className="xc-progress">
             {progress && progress.reasoningChars > 0
               ? `模型思考中 ${chars(progress.reasoningChars)} 字`
