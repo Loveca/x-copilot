@@ -350,7 +350,61 @@ export const CSS_TEXT = `
   text-overflow: ellipsis;
 }
 
-/* 候选列表：一条一行，点整行填入（对齐设计稿） */
+/* ── 回复模式的候选：一个风格一张黑边卡 ─────────────────────
+   ⚠️ 与下面的 .xc-cand-row（发帖模式列表行）是两套，别合并。
+   两套并存是用户明确选的（2026-09-15）：发帖按设计稿改列表行后
+   回复观感变差，所以回复回退成卡片，发帖保持列表行。 */
+.xc-card {
+  border: 1px solid #0f1419;
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-top: 10px;
+  transition: background 0.15s ease;
+}
+.xc-card:hover { background: #f7f9f9; }
+.xc-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.xc-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  background: #0f1419;
+  border: 1px solid #0f1419;
+  border-radius: 9999px;
+  padding: 2px 10px;
+  letter-spacing: 0.01em;
+}
+.xc-card-text { font-size: 13px; line-height: 1.55; color: #0f1419; white-space: pre-wrap; word-break: break-word; }
+
+/* 同一风格的多条候选合并在一张卡里 */
+.xc-cand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid #eff3f4;
+}
+.xc-cand:first-child { border-top: none; padding-top: 2px; }
+.xc-cand-text { flex: 1; min-width: 0; font-size: 13px; line-height: 1.55; color: #0f1419; white-space: pre-wrap; word-break: break-word; }
+
+.xc-fill-btn {
+  margin-top: 8px;
+  border: 1px solid #cfd9de;
+  background: #ffffff;
+  color: #0f1419;
+  border-radius: 9999px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.xc-fill-btn.small { margin-top: 0; padding: 5px 12px; }
+.xc-fill-btn:hover { background: #0f1419; border-color: #0f1419; color: #ffffff; }
+.xc-fill-btn.ok { border-color: #0f1419; color: #ffffff; background: #0f1419; }
+
+/* ── 发帖模式的候选：一条一行，点整行填入（对齐设计稿） ───────── */
 .xc-cand-list {
   display: flex;
   flex-direction: column;

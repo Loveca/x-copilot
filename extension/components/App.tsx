@@ -19,6 +19,7 @@ import {
 import type { ReplyCandidate, TrendItem, TweetContext, UIConfig } from '@/types';
 import type { LLMStreamProgress, LLMStreamTiming } from '@/lib/llm/provider';
 import { CandidateRow } from './CandidateRow';
+import { ReplyCard } from './ReplyCard';
 import { FloatingButton } from './FloatingButton';
 import { Panel, type CopilotMode } from './Panel';
 
@@ -61,6 +62,22 @@ type IdeaTab = 'idea' | 'hot' | 'trend';
 interface PostSelection {
   label: string;
   topic: string;
+}
+
+/** 按风格把候选分组（保持首次出现的顺序），同风格多条合并进一张卡。仅供回复模式使用 */
+function groupByStyle(replies: ReplyCandidate[]): Array<{ style: string; items: ReplyCandidate[] }> {
+  const groups: Array<{ style: string; items: ReplyCandidate[] }> = [];
+  const index = new Map<string, number>();
+  replies.forEach((r) => {
+    const at = index.get(r.style);
+    if (at === undefined) {
+      index.set(r.style, groups.length);
+      groups.push({ style: r.style, items: [r] });
+    } else {
+      groups[at].items.push(r);
+    }
+  });
+  return groups;
 }
 
 export function App() {
@@ -840,13 +857,28 @@ export function App() {
           </button>
         )}
 
-        {replies.length > 0 && (
-          <div className="xc-cand-list">
-            {replies.map((r) => (
-              <CandidateRow key={r.id} candidate={r} filled={filledId === r.id} onFill={fill} />
-            ))}
-          </div>
-        )}
+        {/* 两种模式的候选展示是两套（用户明确选的，2026-09-15）：
+            回复 = 按风格分组的黑边卡（ReplyCard）；发帖 = 一行一条的列表（CandidateRow） */}
+        {replies.length > 0 &&
+          (mode === 'reply' ? (
+            <>
+              {groupByStyle(replies).map((group) => (
+                <ReplyCard
+                  key={group.style}
+                  style={group.style}
+                  items={group.items}
+                  filledId={filledId}
+                  onFill={fill}
+                />
+              ))}
+            </>
+          ) : (
+            <div className="xc-cand-list">
+              {replies.map((r) => (
+                <CandidateRow key={r.id} candidate={r} filled={filledId === r.id} onFill={fill} />
+              ))}
+            </div>
+          ))}
 
         {toast && <div className="xc-toast">{toast}</div>}
       </Panel>
