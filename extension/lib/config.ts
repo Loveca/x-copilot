@@ -53,44 +53,58 @@ export const DEFAULT_STYLES: StyleConfig[] = [
   },
 ];
 
-/** 默认发帖风格（Phase 2 Post Copilot；顺序即候选顺序） */
+/** 默认发帖风格（Post Copilot；顺序即候选顺序）
+ *  ⚠️ 与回复风格 DEFAULT_STYLES 是两套独立体系，不复用、不共享实现逻辑。
+ *  2026-09-15 换成用户给定的 5 个命名；旧 key 见 LEGACY_POST_STYLE_KEYS。 */
 export const DEFAULT_POST_STYLES: StyleConfig[] = [
   {
     key: 'post-opinion',
-    label: '观点型',
+    label: '观点',
     desc: '明确输出一个判断或立场，有主张、不含糊',
     enabled: true,
     count: 1,
   },
   {
-    key: 'post-counter',
-    label: '反向型',
-    desc: '提出与主流不同但站得住的看法，礼貌不抬杠',
+    key: 'post-counterintuitive',
+    label: '反直觉',
+    desc: '抛出一个反常识但站得住的看法，礼貌不抬杠',
     enabled: true,
     count: 1,
   },
   {
-    key: 'post-trend',
-    label: '热点型',
-    desc: '贴着大家正在聊的话题说，有现场感',
+    key: 'post-question',
+    label: '提问互动',
+    desc: '以一个问题收尾，把话筒交给评论区',
     enabled: true,
     count: 1,
   },
   {
-    key: 'post-short',
-    label: '短帖',
-    desc: '一句话，极简，不展开',
+    key: 'post-selfdeprecating',
+    label: '自嘲',
+    desc: '拿自己开涮，松弛、不装',
     enabled: true,
     count: 1,
   },
   {
-    key: 'post-thread',
-    label: 'Thread 开头',
-    desc: '抛出悬念的一句话开头，暗示下面还有内容',
+    key: 'post-nonsense',
+    label: '废话体',
+    desc: '没什么信息量，但读着顺、有氛围',
     enabled: true,
     count: 1,
   },
 ];
+
+/** 2026-09-15 之前用过的发帖风格 key（post-opinion 新旧同名，不列入）。
+ *  命中任意一个就整体重置为新默认——否则旧 key 会留在存储里，
+ *  与新 5 个并存变成 10 个风格。 */
+const LEGACY_POST_STYLE_KEYS = ['post-counter', 'post-trend', 'post-short', 'post-thread'];
+
+/** 发帖风格的存储迁移：检测到旧 key 就丢弃，全部用新默认 */
+export function migratePostStyles(stored?: StyleConfig[] | null): StyleConfig[] | null {
+  if (!Array.isArray(stored)) return null;
+  const hasLegacy = stored.some((s) => s?.key && LEGACY_POST_STYLE_KEYS.includes(s.key));
+  return hasLegacy ? null : stored;
+}
 
 /** Clean 模块默认配置（评论清理优先，首页时间线清理放后阶段） */
 export const DEFAULT_CLEANER_CONFIG: CleanerConfig = {
@@ -137,7 +151,7 @@ export function normalizeUIConfig(stored?: Partial<UIConfig> | null): UIConfig {
   return {
     autoGenerate: stored?.autoGenerate !== false,
     styles: normalizeStyles(stored?.styles, DEFAULT_STYLES),
-    postStyles: normalizeStyles(stored?.postStyles, DEFAULT_POST_STYLES),
+    postStyles: normalizeStyles(migratePostStyles(stored?.postStyles), DEFAULT_POST_STYLES),
     cleaner: normalizeCleaner(stored?.cleaner),
     debugTiming: stored?.debugTiming === true,
   };

@@ -55,15 +55,6 @@ const POST_SPIKE_TEXT =
 /** 「灵感来源」区的三个 tab（默认「水贴」；水贴内容是自动生成的，不是"点出来"的） */
 type IdeaTab = 'idea' | 'hot' | 'trend';
 
-/**
- * 发帖选题：从「热帖 / 趋势」点选的一条。
- * label 只用于面板展示（可以截断），topic 才是真正送进 prompt 的文本。
- */
-interface PostSelection {
-  label: string;
-  topic: string;
-}
-
 /** 按风格把候选分组（保持首次出现的顺序），同风格多条合并进一张卡。仅供回复模式使用 */
 function groupByStyle(replies: ReplyCandidate[]): Array<{ style: string; items: ReplyCandidate[] }> {
   const groups: Array<{ style: string; items: ReplyCandidate[] }> = [];
@@ -90,8 +81,6 @@ export function App() {
   const tweetRef = useRef<TweetContext | null>(null);
   // 记录当前聚焦的主发帖框元素，供 focusout 判断「是否从发帖框移开」
   const postComposerFocusedRef = useRef<HTMLElement | null>(null);
-  // 选题同样存 ref：runGenerate 读 ref 而不是 state，回调引用才能保持稳定
-  const selectionRef = useRef<PostSelection | null>(null);
   // 水贴是否已自动尝试过生成：失败后不再自动重试（否则 effect 会反复触发），「换一批」可手动重来
   const ideaAttemptedRef = useRef(false);
   const [open, setOpen] = useState(false);
@@ -103,7 +92,7 @@ export function App() {
   const [filledIdeaId, setFilledIdeaId] = useState<string | null>(null);
   const [hotTweets, setHotTweets] = useState<TweetContext[]>([]);
   const [trends, setTrends] = useState<TrendItem[]>([]);
-  const [selection, setSelection] = useState<PostSelection | null>(null);
+  const [ideaCollapsed, setIdeaCollapsed] = useState(false);
   const [replies, setReplies] = useState<ReplyCandidate[]>([]);
   const [error, setError] = useState<string | undefined>();
   const [toast, setToast] = useState<string | undefined>();
@@ -172,7 +161,8 @@ export function App() {
     ) => {
       const cleanIntent = intentText.trim();
       const currentMode = modeRef.current;
-      const topic = source === 'idea' ? '' : selectionRef.current?.topic ?? '';
+      // 选题 chip 已废弃：点灵感直接填进输入框（intent），不再单独传 topic
+      const topic = '';
       // 缓存键带上模式：同一条推文的回复结果与发帖草稿不能混
       const key = cacheKey(currentMode, target?.id, cleanIntent, topic, source ?? '');
 
@@ -229,6 +219,8 @@ export function App() {
           if (source !== 'idea') cacheRef.current.set(key, msg.replies);
           if (msg.timing) setTiming(msg.timing);
           if (auto) setToast(currentMode === 'post' ? '帖子草稿已生成' : '回复已生成');
+          // 发帖：出结果后把灵感区收成一行「‹ 换个思路」，把空间让给候选
+          if (currentMode === 'post' && source !== 'idea') setIdeaCollapsed(true);
           else if (source === 'idea') setToast('已生成 3 条，点一条直接填入');
           setGenerating(false);
           port.disconnect();
@@ -286,9 +278,8 @@ export function App() {
       setIntent('');
       setTiming(undefined);
       setProgress(undefined);
-      // 换帖 / 离开推文：上一份选题不再适用（水贴三件套与推文无关，保留沿用）
-      selectionRef.current = null;
-      setSelection(null);
+      // 换帖 / 离开推文：回到未生成状态，灵感区重新展开
+      setIdeaCollapsed(false);
       if (!t) {
         // Modal 关闭 / 离开 Tweet：取消在途请求，收起 Panel
         cancelGeneration();
@@ -427,38 +418,11 @@ export function App() {
     [applyMode, tweet]
   );
 
-  /** 选中一条素材 → 设为选题。不自动生成，等用户点「生成帖子」；列表保持不动，可再挑 */
-  const chooseSelection = useCallback((next: PostSelection) => {
-    selectionRef.current = next;
-    setSelection(next);
+  /** 点选一条灵感 → 填进输入框（不直接生成、不跳过输入框）。可反复点其他条覆盖 */
+  const pickIdeaText = useCallback((text: string) => {
+    setIntent(text);
+    intentRef.current?.focus();
   }, []);
-
-  const clearSelection = useCallback(() => {
-    selectionRef.current = null;
-    setSelection(null);
-  }, []);
-
-  /** 热帖里点一条 → 选题取该帖正文（截断，别把整条塞进 prompt） */
-  const pickHot = useCallback(
-    (t: TweetContext) => {
-      const head = t.text.replace(/\s+/g, ' ').trim();
-      chooseSelection({
-        label: `${t.authorHandle ?? t.author ?? '某条帖子'}：${head.slice(0, 26)}${
-          head.length > 26 ? '…' : ''
-        }`,
-        topic: head.slice(0, 160),
-      });
-    },
-    [chooseSelection]
-  );
-
-  /** 趋势里点一个话题 → 选题就是话题名本身 */
-  const pickTrend = useCallback(
-    (t: TrendItem) => {
-      chooseSelection({ label: t.topic, topic: t.topic });
-    },
-    [chooseSelection]
-  );
 
   /** 生成 / 重抽水贴三件套（顶级认知 / 冷知识 / 扎心真相 各一条，走内置 prompt） */
   const loadIdeas = useCallback(() => {
@@ -656,67 +620,18 @@ export function App() {
           </div>
         ) : null}
 
-        {(tweet || mode === 'post') && (
-          <textarea
-            ref={intentRef}
-            className="xc-intent"
-            rows={1}
-            value={intent}
-            maxLength={300}
-            placeholder={mode === 'post' ? '想发点什么？（可选，一两句话）' : '想说什么？（可选，一句话）'}
-            onChange={(e) => setIntent(e.target.value)}
-            onKeyDown={(e) => {
-              // Enter 直接生成；Shift+Enter 换行
-              if (e.key === 'Enter' && !e.shiftKey && !generating && (tweet || mode === 'post')) {
-                e.preventDefault();
-                void runGenerate(tweet, false, intent);
-              }
-            }}
-          />
-        )}
 
-        <button
-          className="xc-generate-btn"
-          onClick={() => runGenerate(tweet, false, intent)}
-          disabled={generating || (mode === 'reply' && !tweet)}
-        >
-          {generating ? (
-            <>
-              <span className="xc-spin" />
-              正在生成 {elapsedMs > 800 ? `${(elapsedMs / 1000).toFixed(1)}s` : '……'}
-            </>
-          ) : intent.trim() ? (
-            '按这个想法生成'
-          ) : selection ? (
-            '按这个选题生成'
-          ) : replies.length > 0 ? (
-            '重新生成'
-          ) : mode === 'post' ? (
-            '生成帖子'
+        {mode === 'post' &&
+          (ideaCollapsed ? (
+            <button
+              type="button"
+              className="xc-idea-back"
+              onClick={() => setIdeaCollapsed(false)}
+            >
+              ‹ 换个思路（重新选灵感）
+            </button>
           ) : (
-            '生成回复'
-          )}
-        </button>
-
-        {mode === 'post' && (
           <>
-            {selection && (
-              <div className="xc-selection">
-                <span className="xc-selection-tag">选题</span>
-                <span className="xc-selection-text" title={selection.label}>
-                  {selection.label}
-                </span>
-                <button
-                  type="button"
-                  className="xc-selection-clear"
-                  onClick={clearSelection}
-                  title="清除选题"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
-
             <div className="xc-idea-rail">
               <span className="xc-idea-title">灵感来源</span>
               <div className="xc-idea-bar">
@@ -730,7 +645,7 @@ export function App() {
                     <rect x="4" y="4" width="16" height="16" rx="4" />
                     <circle cx="12" cy="12" r="2.4" />
                   </svg>
-                  <span>水贴</span>
+                  <span>随便聊聊</span>
                 </button>
                 <button
                   type="button"
@@ -795,7 +710,7 @@ export function App() {
                     key={t.id ?? i}
                     type="button"
                     className="xc-idea-item"
-                    onClick={() => pickHot(t)}
+                    onClick={() => pickIdeaText(t.text.replace(/\s+/g, ' ').trim().slice(0, 160))}
                   >
                     <div className="xc-idea-item-meta">
                       {t.authorHandle ?? t.author ?? '未知'} · ♥ {t.likeCount ?? 0} · 回复{' '}
@@ -814,7 +729,7 @@ export function App() {
                     key={t.topic}
                     type="button"
                     className="xc-trend-item"
-                    onClick={() => pickTrend(t)}
+                    onClick={() => pickIdeaText(t.topic)}
                   >
                     <span className="xc-trend-rank">{t.rank}</span>
                     <span className="xc-trend-topic">{t.topic}</span>
@@ -824,7 +739,55 @@ export function App() {
               </div>
             )}
           </>
+          ))}
+        {(tweet || mode === 'post') && (
+          <textarea
+            ref={intentRef}
+            className="xc-intent"
+            rows={1}
+            value={intent}
+            maxLength={300}
+            placeholder={mode === 'post' ? '想发点什么？（可选，一两句话）' : '想说什么？（可选，一句话）'}
+            onChange={(e) => setIntent(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter 直接生成；Shift+Enter 换行
+              if (e.key === 'Enter' && !e.shiftKey && !generating && (tweet || mode === 'post')) {
+                e.preventDefault();
+                void runGenerate(tweet, false, intent);
+              }
+            }}
+          />
         )}
+        <button
+          className="xc-generate-btn"
+          onClick={() => runGenerate(tweet, false, intent)}
+          disabled={
+            generating ||
+            (mode === 'reply' && !tweet) ||
+            // 发帖模式：输入框为空就没有"要说什么"，禁用（与回复模式的 disabled 样式一致）
+            (mode === 'post' && !intent.trim())
+          }
+        >
+          {generating ? (
+            <>
+              <span className="xc-spin" />
+              正在生成 {elapsedMs > 800 ? `${(elapsedMs / 1000).toFixed(1)}s` : '……'}
+            </>
+          ) : mode === 'post' ? (
+            replies.length > 0 ? (
+              '重新生成'
+            ) : (
+              '生成帖子'
+            )
+          ) : intent.trim() ? (
+            '按这个想法生成'
+          ) : replies.length > 0 ? (
+            '重新生成'
+          ) : (
+            '生成回复'
+          )}
+        </button>
+
 
         {error && <div className="xc-error">{error}</div>}
 
@@ -857,28 +820,20 @@ export function App() {
           </button>
         )}
 
-        {/* 两种模式的候选展示是两套（用户明确选的，2026-09-15）：
-            回复 = 按风格分组的黑边卡（ReplyCard）；发帖 = 一行一条的列表（CandidateRow） */}
-        {replies.length > 0 &&
-          (mode === 'reply' ? (
-            <>
-              {groupByStyle(replies).map((group) => (
-                <ReplyCard
-                  key={group.style}
-                  style={group.style}
-                  items={group.items}
-                  filledId={filledId}
-                  onFill={fill}
-                />
-              ))}
-            </>
-          ) : (
-            <div className="xc-cand-list">
-              {replies.map((r) => (
-                <CandidateRow key={r.id} candidate={r} filled={filledId === r.id} onFill={fill} />
-              ))}
-            </div>
-          ))}
+        {/* 两种模式共用同一套候选展示：按风格分组的黑边卡（2026-09-15 用户决定统一用卡片） */}
+        {replies.length > 0 && (
+          <>
+            {groupByStyle(replies).map((group) => (
+              <ReplyCard
+                key={group.style}
+                style={group.style}
+                items={group.items}
+                filledId={filledId}
+                onFill={fill}
+              />
+            ))}
+          </>
+        )}
 
         {toast && <div className="xc-toast">{toast}</div>}
       </Panel>

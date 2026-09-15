@@ -173,47 +173,23 @@ export const CSS_TEXT = `
 
 /* ── 「灵感来源」区（Post V1）：水贴 / Feed热帖 / 热点 ───────── */
 
-/* 已选中的选题：单值，可清除 */
-.xc-selection {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 10px;
-  padding: 6px 6px 6px 10px;
-  border: 1px solid #cfd9de;
-  border-radius: 10px;
-  background: #f7f9f9;
-}
-.xc-selection-tag {
-  flex-shrink: 0;
-  font-size: 10px;
-  font-weight: 700;
-  color: #ffffff;
-  background: #0f1419;
-  border-radius: 9999px;
-  padding: 2px 7px;
-}
-.xc-selection-text {
-  flex: 1;
-  min-width: 0;
-  font-size: 12px;
-  color: #0f1419;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.xc-selection-clear {
-  flex-shrink: 0;
+/* 状态 B：出结果后灵感区收起，只留这一行入口 */
+.xc-idea-back {
+  display: block;
+  width: 100%;
+  text-align: left;
   border: none;
   background: transparent;
-  color: #8b98a5;
-  font-size: 12px;
-  line-height: 1;
-  padding: 3px 5px;
-  border-radius: 9999px;
+  color: #536471;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 8px 0;
+  margin: 2px 0 12px;
   cursor: pointer;
+  transition: color 0.15s ease;
 }
-.xc-selection-clear:hover { background: #eff3f4; color: #0f1419; }
+.xc-idea-back:hover { color: #0f1419; }
 
 /* 来源切换：标题一行、胶囊一行；胶囊无边框，选中项黑底白字 */
 .xc-idea-rail { margin: 4px 0 8px; }
@@ -354,10 +330,8 @@ export const CSS_TEXT = `
   text-overflow: ellipsis;
 }
 
-/* ── 回复模式的候选：一个风格一张黑边卡 ─────────────────────
-   ⚠️ 与下面的 .xc-cand-row（发帖模式列表行）是两套，别合并。
-   两套并存是用户明确选的（2026-09-15）：发帖按设计稿改列表行后
-   回复观感变差，所以回复回退成卡片，发帖保持列表行。 */
+/* ── 候选：一个风格一张黑边卡（回复 / 发帖两种模式共用） ─────────
+   ⚠️ 与下面的 .xc-cand-row（「随便聊聊」灵感列表）用途不同，别混用。 */
 .xc-card {
   border: 1px solid #0f1419;
   border-radius: 12px;
@@ -388,7 +362,16 @@ export const CSS_TEXT = `
   border-top: 1px solid #eff3f4;
 }
 .xc-cand:first-child { border-top: none; padding-top: 2px; }
-.xc-cand-text { flex: 1; min-width: 0; font-size: 13px; line-height: 1.55; color: #0f1419; white-space: pre-wrap; word-break: break-word; }
+.xc-cand-text {
+  flex: 1;
+  min-width: 0;
+  /* 15px：与回复模式的候选正文字号统一（2026-09-15 规范） */
+  font-size: 15px;
+  line-height: 1.55;
+  color: #0f1419;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 
 .xc-fill-btn {
   margin-top: 8px;

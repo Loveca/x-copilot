@@ -299,6 +299,10 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
       回复风格
     </button>
+    <button class="nav-item" data-pane="post-styles">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v12H8l-4 4V4Z"/></svg>
+      发帖风格
+    </button>
     <button class="nav-item" data-pane="behavior">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></svg>
       自动生成
@@ -375,6 +379,26 @@
         <button class="btn" id="save-styles">保存</button>
         <div class="status" id="status-styles"></div>
         <div class="debug-line" id="debug-line">最近操作：—</div>
+      </div>
+    </section>
+
+    <!-- 发帖风格（与回复风格是两套独立配置，各自存储、互不影响） -->
+    <section class="pane" id="pane-post-styles">
+      <h2>发帖风格</h2>
+      <p class="pane-desc">
+        发帖专用的 5 个风格，与「回复风格」<strong>完全独立</strong>，不共用、不互相影响。
+        用上下箭头调整顺序，设定每种风格的数量；生成帖子时严格按此顺序与数量输出。
+      </p>
+
+      <div class="group">
+        <div class="style-list" id="post-style-list"></div>
+        <div class="style-total">
+          <span>候选总数：<strong id="post-style-total">5</strong> 条（上限 10）</span>
+          <button class="btn-link" id="reset-post-styles">恢复默认</button>
+        </div>
+        <button class="btn" id="save-post-styles">保存</button>
+        <div class="status" id="status-post-styles"></div>
+        <div class="debug-line" id="debug-line-post">最近操作：—</div>
       </div>
     </section>
 

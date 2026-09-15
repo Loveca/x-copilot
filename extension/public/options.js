@@ -96,6 +96,27 @@
     { key: 'casual', label: '水贴', desc: '轻松互动式的一句话，几乎没有信息量但自然', enabled: true, count: 1 },
   ];
 
+  // 默认发帖风格，需与 extension/lib/config.ts 的 DEFAULT_POST_STYLES 保持一致
+  // ⚠️ 与上面的 DEFAULT_STYLES（回复风格）是两套独立体系，不复用
+  var DEFAULT_POST_STYLES = [
+    { key: 'post-opinion', label: '观点', desc: '明确输出一个判断或立场，有主张、不含糊', enabled: true, count: 1 },
+    { key: 'post-counterintuitive', label: '反直觉', desc: '抛出一个反常识但站得住的看法，礼貌不抬杠', enabled: true, count: 1 },
+    { key: 'post-question', label: '提问互动', desc: '以一个问题收尾，把话筒交给评论区', enabled: true, count: 1 },
+    { key: 'post-selfdeprecating', label: '自嘲', desc: '拿自己开涮，松弛、不装', enabled: true, count: 1 },
+    { key: 'post-nonsense', label: '废话体', desc: '没什么信息量，但读着顺、有氛围', enabled: true, count: 1 },
+  ];
+
+  // 2026-09-15 之前用过的发帖风格 key（post-opinion 新旧同名，不列入）
+  var LEGACY_POST_STYLE_KEYS = ['post-counter', 'post-trend', 'post-short', 'post-thread'];
+
+  function migratePostStyles(stored) {
+    if (!Array.isArray(stored)) return null;
+    for (var i = 0; i < stored.length; i++) {
+      if (stored[i] && LEGACY_POST_STYLE_KEYS.indexOf(stored[i].key) >= 0) return null;
+    }
+    return stored;
+  }
+
   // 默认清理配置，需与 extension/lib/config.ts 的 DEFAULT_CLEANER_CONFIG 保持一致
   var DEFAULT_CLEANER = {
     enabled: true,
@@ -112,6 +133,7 @@
   var uiState = {
     autoGenerate: true,
     styles: clone(DEFAULT_STYLES),
+    postStyles: clone(DEFAULT_POST_STYLES),
     cleaner: clone(DEFAULT_CLEANER),
     debugTiming: false,
   };
@@ -124,10 +146,11 @@
   }
 
   // 归一化：**保留存储中的顺序**（顺序是用户显式配置），缺失的风格追加到末尾
-  function normalizeStyles(stored) {
+  function normalizeStyles(stored, defaults) {
+    defaults = defaults || DEFAULT_STYLES;
     var list = Array.isArray(stored) ? stored : [];
     var defaultsByKey = {};
-    DEFAULT_STYLES.forEach(function (d) { defaultsByKey[d.key] = d; });
+    defaults.forEach(function (d) { defaultsByKey[d.key] = d; });
 
     var seen = {};
     var result = [];
@@ -155,7 +178,7 @@
       }
     });
 
-    DEFAULT_STYLES.forEach(function (def) {
+    defaults.forEach(function (def) {
       if (!seen[def.key]) result.push(clone(def));
     });
 
@@ -365,9 +388,6 @@
   });
 
   // ---------- 回复风格：排序（上下箭头）+ 数量 + 启用 ----------
-  var $list = document.getElementById('style-list');
-  var $total = document.getElementById('style-total');
-  var $statusStyles = document.getElementById('status-styles');
 
   var SVG_UP = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>';
   var SVG_DOWN = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
@@ -380,153 +400,185 @@
     var time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
     logHistory.push(text + ' · ' + time);
     if (logHistory.length > 3) logHistory.shift();
-    if ($debugLine) {
-      $debugLine.textContent = '最近操作：' + logHistory.join('  |  ');
+    var text = '最近操作：' + logHistory.join('  |  ');
+    if ($debugLine) $debugLine.textContent = text;
+    var $dbgPost = document.getElementById('debug-line-post');
+    if ($dbgPost) $dbgPost.textContent = text;
+  }
+
+  // 风格编辑器工厂：回复风格 / 发帖风格共用同一套 UI 逻辑，但配置各自独立存储
+  function createStyleEditor(cfg) {
+    var $list = document.getElementById(cfg.listId);
+    var $total = document.getElementById(cfg.totalId);
+    var $status = document.getElementById(cfg.statusId);
+
+    function list() { return uiState[cfg.stateKey]; }
+
+    function enabledTotal() {
+      return list().reduce(function (sum, s) { return sum + (s.enabled ? s.count : 0); }, 0);
     }
-  }
 
-  function moveStyle(from, to, label) {
-    logAction(label + ' ' + (from + 1) + ' → ' + (to + 1));
-    if (to < 0 || to >= uiState.styles.length) return;
-    var moved = uiState.styles.splice(from, 1)[0];
-    uiState.styles.splice(to, 0, moved);
-    renderStyles();
-    persistStyles(label);
-  }
+    function move(from, to, label) {
+      logAction(cfg.label + '：' + label + ' ' + (from + 1) + ' → ' + (to + 1));
+      if (to < 0 || to >= list().length) return;
+      var moved = list().splice(from, 1)[0];
+      list().splice(to, 0, moved);
+      render();
+      persist(label);
+    }
 
-  function renderStyles() {
-    $list.innerHTML = '';
-    uiState.styles.forEach(function (style, i) {
-      var row = document.createElement('div');
-      row.className = 'style-row' + (style.enabled ? '' : ' disabled');
-      row.setAttribute('data-index', String(i));
+    function render() {
+      $list.innerHTML = '';
+      list().forEach(function (style, i) {
+        var row = document.createElement('div');
+        row.className = 'style-row' + (style.enabled ? '' : ' disabled');
+        row.setAttribute('data-index', String(i));
 
-      // 上下箭头：调整顺序（纯文字按钮 + 与数量步进器同款容器，避免控件形态差异）
-      var order = document.createElement('div');
-      order.className = 'order-buttons';
+        var order = document.createElement('div');
+        order.className = 'order-buttons';
 
-      var canUp = i > 0;
-      var canDown = i < uiState.styles.length - 1;
+        var canUp = i > 0;
+        var canDown = i < list().length - 1;
 
-      var up = document.createElement('button');
-      up.type = 'button';
-      up.innerHTML = SVG_UP;
-      up.title = canUp ? '上移' : '已在最前';
-      if (!canUp) up.className = 'is-disabled';
-      up.addEventListener('click', function () {
-        if (!canUp) {
-          logAction('上移（已在最前，未执行）');
-          return;
-        }
-        moveStyle(i, i - 1, '上移');
+        var up = document.createElement('button');
+        up.type = 'button';
+        up.innerHTML = SVG_UP;
+        up.title = canUp ? '上移' : '已在最前';
+        if (!canUp) up.className = 'is-disabled';
+        up.addEventListener('click', function () {
+          if (!canUp) { logAction('上移（已在最前，未执行）'); return; }
+          move(i, i - 1, '上移');
+        });
+
+        var down = document.createElement('button');
+        down.type = 'button';
+        down.innerHTML = SVG_DOWN;
+        down.title = canDown ? '下移' : '已在最后';
+        if (!canDown) down.className = 'is-disabled';
+        down.addEventListener('click', function () {
+          if (!canDown) { logAction('下移（已在最后，未执行）'); return; }
+          move(i, i + 1, '下移');
+        });
+
+        order.appendChild(up);
+        order.appendChild(down);
+
+        var main = document.createElement('div');
+        main.className = 'style-main';
+        var label = document.createElement('div');
+        label.className = 'style-label';
+        label.textContent = style.label + '（第 ' + (i + 1) + ' 位）';
+        var desc = document.createElement('div');
+        desc.className = 'style-desc';
+        desc.textContent = style.desc;
+        main.appendChild(label);
+        main.appendChild(desc);
+
+        var stepper = document.createElement('div');
+        stepper.className = 'stepper';
+        var minus = document.createElement('button');
+        minus.textContent = '\u2212';
+        minus.disabled = !style.enabled || style.count <= 1;
+        minus.title = '减少一条';
+        var val = document.createElement('span');
+        val.textContent = String(style.count);
+        var plus = document.createElement('button');
+        plus.textContent = '+';
+        plus.disabled = !style.enabled || style.count >= MAX_PER_STYLE;
+        plus.title = '增加一条';
+        stepper.appendChild(minus);
+        stepper.appendChild(val);
+        stepper.appendChild(plus);
+
+        minus.addEventListener('click', function () {
+          style.count = clampCount(style.count - 1);
+          render();
+          persist('count-');
+        });
+        plus.addEventListener('click', function () {
+          style.count = clampCount(style.count + 1);
+          render();
+          persist('count+');
+        });
+
+        var sw = document.createElement('label');
+        sw.className = 'switch';
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = style.enabled;
+        var slider = document.createElement('span');
+        slider.className = 'slider';
+        sw.appendChild(cb);
+        sw.appendChild(slider);
+        cb.addEventListener('change', function () {
+          style.enabled = cb.checked;
+          render();
+          persist('toggle');
+        });
+
+        row.appendChild(main);
+        row.appendChild(stepper);
+        row.appendChild(sw);
+        row.appendChild(order);
+        $list.appendChild(row);
       });
 
-      var down = document.createElement('button');
-      down.type = 'button';
-      down.innerHTML = SVG_DOWN;
-      down.title = canDown ? '下移' : '已在最后';
-      if (!canDown) down.className = 'is-disabled';
-      down.addEventListener('click', function () {
-        if (!canDown) {
-          logAction('下移（已在最后，未执行）');
-          return;
-        }
-        moveStyle(i, i + 1, '下移');
+      $total.textContent = String(enabledTotal());
+    }
+
+    function persist(reason) {
+      var total = enabledTotal();
+      var manual = reason === 'manual';
+      saveUI().then(function () {
+        logAction('已' + (manual ? '手动' : '自动') + '保存（' + cfg.label + ' ' + list().length + ' 项）');
+        setStatus(
+          $status,
+          total === 0
+            ? '已保存。注意：当前没有任何启用的风格，将无法生成候选。'
+            : manual
+              ? '已手动保存'
+              : '已自动保存，下次生成起按新配置输出。',
+          total !== 0
+        );
+      }).catch(function () {
+        setStatus($status, '保存失败，请重试。', false);
       });
+    }
 
-      order.appendChild(up);
-      order.appendChild(down);
-
-      var main = document.createElement('div');
-      main.className = 'style-main';
-      var label = document.createElement('div');
-      label.className = 'style-label';
-      label.textContent = style.label + '（第 ' + (i + 1) + ' 位）';
-      var desc = document.createElement('div');
-      desc.className = 'style-desc';
-      desc.textContent = style.desc;
-      main.appendChild(label);
-      main.appendChild(desc);
-
-      var stepper = document.createElement('div');
-      stepper.className = 'stepper';
-      var minus = document.createElement('button');
-      minus.textContent = '−';
-      minus.disabled = !style.enabled || style.count <= 1;
-      minus.title = '减少一条';
-      var val = document.createElement('span');
-      val.textContent = String(style.count);
-      var plus = document.createElement('button');
-      plus.textContent = '+';
-      plus.disabled = !style.enabled || style.count >= MAX_PER_STYLE;
-      plus.title = '增加一条';
-      stepper.appendChild(minus);
-      stepper.appendChild(val);
-      stepper.appendChild(plus);
-
-      minus.addEventListener('click', function () {
-        style.count = clampCount(style.count - 1);
-        renderStyles();
-        persistStyles('count-');
-      });
-      plus.addEventListener('click', function () {
-        style.count = clampCount(style.count + 1);
-        renderStyles();
-        persistStyles('count+');
-      });
-
-      var sw = document.createElement('label');
-      sw.className = 'switch';
-      var cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.checked = style.enabled;
-      var slider = document.createElement('span');
-      slider.className = 'slider';
-      sw.appendChild(cb);
-      sw.appendChild(slider);
-      cb.addEventListener('change', function () {
-        style.enabled = cb.checked;
-        renderStyles();
-        persistStyles('toggle');
-      });
-
-      row.appendChild(main);
-      row.appendChild(stepper);
-      row.appendChild(sw);
-      row.appendChild(order);
-      $list.appendChild(row);
+    document.getElementById(cfg.resetId).addEventListener('click', function () {
+      uiState[cfg.stateKey] = clone(cfg.defaults);
+      render();
+      persist('reset');
     });
 
-    $total.textContent = String(totalCount());
-  }
-
-  function persistStyles(reason) {
-    var enabledTotal = totalCount();
-    var manual = reason === 'manual';
-    saveUI().then(function () {
-      logAction('已' + (manual ? '手动' : '自动') + '保存（' + uiState.styles.length + ' 项）');
-      setStatus(
-        $statusStyles,
-        enabledTotal === 0
-          ? '已保存。注意：当前没有任何启用的风格，将无法生成候选。'
-          : manual
-            ? '已手动保存'
-            : '已自动保存，下一条 Tweet 起按新配置生成。',
-        enabledTotal !== 0
-      );
-    }).catch(function () {
-      setStatus($statusStyles, '保存失败，请重试。', false);
+    document.getElementById(cfg.saveId).addEventListener('click', function () {
+      persist('manual');
     });
+
+    render();
+    return { render: render };
   }
 
-  document.getElementById('reset-styles').addEventListener('click', function () {
-    uiState.styles = clone(DEFAULT_STYLES);
-    renderStyles();
-    persistStyles('reset');
+  var replyStyleEditor = createStyleEditor({
+    stateKey: 'styles',
+    defaults: DEFAULT_STYLES,
+    listId: 'style-list',
+    totalId: 'style-total',
+    statusId: 'status-styles',
+    resetId: 'reset-styles',
+    saveId: 'save-styles',
+    label: '回复风格',
   });
 
-  document.getElementById('save-styles').addEventListener('click', function () {
-    persistStyles('manual');
+  var postStyleEditor = createStyleEditor({
+    stateKey: 'postStyles',
+    defaults: DEFAULT_POST_STYLES,
+    listId: 'post-style-list',
+    totalId: 'post-style-total',
+    statusId: 'status-post-styles',
+    resetId: 'reset-post-styles',
+    saveId: 'save-post-styles',
+    label: '发帖风格',
   });
 
   // ---------- 自动生成开关 ----------
@@ -590,7 +642,10 @@
   chrome.storage.local.get(UI_KEY).then(function (res) {
     var cfg = res[UI_KEY] || {};
     uiState.autoGenerate = cfg.autoGenerate !== false;
-    uiState.styles = normalizeStyles(cfg.styles);
+    uiState.styles = normalizeStyles(cfg.styles, DEFAULT_STYLES);
+    uiState.postStyles = normalizeStyles(migratePostStyles(cfg.postStyles), DEFAULT_POST_STYLES);
+    if (replyStyleEditor) replyStyleEditor.render();
+    if (postStyleEditor) postStyleEditor.render();
     uiState.debugTiming = cfg.debugTiming === true;
     uiState.cleaner = Object.assign({}, DEFAULT_CLEANER, cfg.cleaner || {}, {
       categories: Object.assign({}, DEFAULT_CLEANER.categories, (cfg.cleaner || {}).categories || {}),
