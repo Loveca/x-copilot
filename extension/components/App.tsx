@@ -18,9 +18,9 @@ import {
 } from '@/lib/config';
 import type { ReplyCandidate, TrendItem, TweetContext, UIConfig } from '@/types';
 import type { LLMStreamProgress, LLMStreamTiming } from '@/lib/llm/provider';
+import { CandidateRow } from './CandidateRow';
 import { FloatingButton } from './FloatingButton';
 import { Panel, type CopilotMode } from './Panel';
-import { ReplyCard } from './ReplyCard';
 
 function friendlyError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
@@ -61,22 +61,6 @@ type IdeaSource = 'hot' | 'trend';
 interface PostSelection {
   label: string;
   topic: string;
-}
-
-/** 按风格把候选分组（保持首次出现的顺序），同风格多条合并进一张卡 */
-function groupByStyle(replies: ReplyCandidate[]): Array<{ style: string; items: ReplyCandidate[] }> {
-  const groups: Array<{ style: string; items: ReplyCandidate[] }> = [];
-  const index = new Map<string, number>();
-  replies.forEach((r) => {
-    const at = index.get(r.style);
-    if (at === undefined) {
-      index.set(r.style, groups.length);
-      groups.push({ style: r.style, items: [r] });
-    } else {
-      groups[at].items.push(r);
-    }
-  });
-  return groups;
 }
 
 export function App() {
@@ -220,7 +204,7 @@ export function App() {
           cacheRef.current.set(key, msg.replies);
           if (msg.timing) setTiming(msg.timing);
           if (auto) setToast(currentMode === 'post' ? '帖子草稿已生成' : '回复已生成');
-          else if (source === 'idea') setToast('已生成 3 条，点「填入」挑一条');
+          else if (source === 'idea') setToast('已生成 3 条，点一条直接填入');
           setGenerating(false);
           port.disconnect();
         } else if (msg.type === 'error') {
@@ -653,6 +637,29 @@ export function App() {
           />
         )}
 
+        <button
+          className="xc-generate-btn"
+          onClick={() => runGenerate(tweet, false, intent)}
+          disabled={generating || (mode === 'reply' && !tweet)}
+        >
+          {generating ? (
+            <>
+              <span className="xc-spin" />
+              正在生成 {elapsedMs > 800 ? `${(elapsedMs / 1000).toFixed(1)}s` : '……'}
+            </>
+          ) : intent.trim() ? (
+            '按这个想法生成'
+          ) : selection ? (
+            '按这个选题生成'
+          ) : replies.length > 0 ? (
+            '重新生成'
+          ) : mode === 'post' ? (
+            '生成帖子'
+          ) : (
+            '生成回复'
+          )}
+        </button>
+
         {mode === 'post' && (
           <>
             {selection && (
@@ -672,33 +679,47 @@ export function App() {
               </div>
             )}
 
-            <div className="xc-idea-bar">
-              <span className="xc-idea-title">灵感</span>
-              <button
-                type="button"
-                className="xc-idea-chip"
-                onClick={generateIdeas}
-                disabled={generating}
-                title="三句随时能发的成品：顶级认知 / 冷知识 / 扎心真相"
-              >
-                🌊 随手发
-              </button>
-              <button
-                type="button"
-                className={'xc-idea-chip' + (ideaSource === 'hot' ? ' active' : '')}
-                onClick={toggleHot}
-                title="当前页面上互动最高的几条帖子"
-              >
-                🔥 热帖
-              </button>
-              <button
-                type="button"
-                className={'xc-idea-chip' + (ideaSource === 'trend' ? ' active' : '')}
-                onClick={toggleTrends}
-                title="X 右侧栏「正在流行」里的话题"
-              >
-                📈 趋势
-              </button>
+            <div className="xc-idea-rail">
+              <span className="xc-idea-title">灵感来源</span>
+              <div className="xc-idea-bar">
+                <button
+                  type="button"
+                  className={'xc-idea-chip' + (ideaSource ? '' : ' active')}
+                  onClick={generateIdeas}
+                  disabled={generating}
+                  title="三句随时能发的成品：顶级认知 / 冷知识 / 扎心真相"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="4" y="4" width="16" height="16" rx="4" />
+                    <circle cx="12" cy="12" r="2.4" />
+                  </svg>
+                  <span>水贴</span>
+                </button>
+                <button
+                  type="button"
+                  className={'xc-idea-chip' + (ideaSource === 'hot' ? ' active' : '')}
+                  onClick={toggleHot}
+                  title="当前页面上互动最高的几条帖子"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="8" />
+                    <path d="M12 8.5V12l2.6 1.6" />
+                  </svg>
+                  <span>Feed热帖</span>
+                </button>
+                <button
+                  type="button"
+                  className={'xc-idea-chip' + (ideaSource === 'trend' ? ' active' : '')}
+                  onClick={toggleTrends}
+                  title="X 右侧栏「正在流行」里的话题"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polyline points="4 16 9.5 10.5 13 14 20 7" />
+                    <polyline points="14.5 7 20 7 20 12.5" />
+                  </svg>
+                  <span>热点</span>
+                </button>
+              </div>
             </div>
 
             {ideaSource === 'hot' && (
@@ -739,29 +760,6 @@ export function App() {
           </>
         )}
 
-        <button
-          className="xc-generate-btn"
-          onClick={() => runGenerate(tweet, false, intent)}
-          disabled={generating || (mode === 'reply' && !tweet)}
-        >
-          {generating ? (
-            <>
-              <span className="xc-spin" />
-              正在生成 {elapsedMs > 800 ? `${(elapsedMs / 1000).toFixed(1)}s` : '……'}
-            </>
-          ) : intent.trim() ? (
-            '按这个想法生成'
-          ) : selection ? (
-            '按这个选题生成'
-          ) : replies.length > 0 ? (
-            '重新生成'
-          ) : mode === 'post' ? (
-            '生成帖子'
-          ) : (
-            '生成回复'
-          )}
-        </button>
-
         {error && <div className="xc-error">{error}</div>}
 
         {debugTiming && generating && (
@@ -793,15 +791,13 @@ export function App() {
           </button>
         )}
 
-        {groupByStyle(replies).map((group) => (
-          <ReplyCard
-            key={group.style}
-            style={group.style}
-            items={group.items}
-            filledId={filledId}
-            onFill={fill}
-          />
-        ))}
+        {replies.length > 0 && (
+          <div className="xc-cand-list">
+            {replies.map((r) => (
+              <CandidateRow key={r.id} candidate={r} filled={filledId === r.id} onFill={fill} />
+            ))}
+          </div>
+        )}
 
         {toast && <div className="xc-toast">{toast}</div>}
       </Panel>
