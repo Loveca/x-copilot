@@ -81,6 +81,9 @@ export function App() {
   const tweetRef = useRef<TweetContext | null>(null);
   // 记录当前聚焦的主发帖框元素，供 focusout 判断「是否从发帖框移开」
   const postComposerFocusedRef = useRef<HTMLElement | null>(null);
+  // 最近一次指针按下是否落在我们面板里：点面板内**不可聚焦**的区域（卡片正文、空白）时，
+  // 浏览器会把焦点先退回 body，focusout 的 relatedTarget 变成 null，只靠焦点判断会误关面板
+  const pointerInPanelRef = useRef(false);
   // 水贴是否已自动尝试过生成：失败后不再自动重试（否则 effect 会反复触发），「换一批」可手动重来
   const ideaAttemptedRef = useRef(false);
   const [open, setOpen] = useState(false);
@@ -329,6 +332,16 @@ export function App() {
         setOpen(true);
       }
     };
+    // 指针按下时先记一笔「点在哪」：只靠 focusout 的 relatedTarget 判断会误关面板
+    const onPointerDown = (e: Event) => {
+      const ev = e as MouseEvent;
+      const path = typeof ev.composedPath === 'function' ? ev.composedPath() : [];
+      pointerInPanelRef.current = isOurs(ev.target) || path.some((n) => isOurs(n as EventTarget));
+      // 只在本次事件循环内有效，别影响之后的键盘操作
+      setTimeout(() => {
+        pointerInPanelRef.current = false;
+      }, 0);
+    };
     const onFocusOut = (e: FocusEvent) => {
       const el = e.target as Element | null;
       if (!el || tweetRef.current) return; // 详情页/回复弹窗不自动关
@@ -343,15 +356,19 @@ export function App() {
         const c = findPostComposer();
         return !!c && (c === related || c.contains(related));
       })();
+      // 这一下是点在面板里（按钮、卡片、空白都算）→ 保持展开，别把面板关在 click 之前
+      if (pointerInPanelRef.current) return;
       if (goingPost || isOurs(related)) return; // 焦点去了发帖框或面板内 → 保持
       postComposerFocusedRef.current = null;
       setOpen(false);
     };
     document.body.addEventListener('focusin', onFocusIn, true);
     document.body.addEventListener('focusout', onFocusOut, true);
+    document.body.addEventListener('mousedown', onPointerDown, true);
     return () => {
       document.body.removeEventListener('focusin', onFocusIn, true);
       document.body.removeEventListener('focusout', onFocusOut, true);
+      document.body.removeEventListener('mousedown', onPointerDown, true);
     };
   }, [applyMode]);
 
