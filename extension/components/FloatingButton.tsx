@@ -71,7 +71,9 @@ export function FloatingButton({ open, onToggle }: Props) {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
     >
-      ✦
+      <span className="xc-fab-mark" aria-hidden="true">
+        ✦
+      </span>
     </button>
   );
 }

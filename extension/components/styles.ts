@@ -19,8 +19,10 @@ export const CSS_TEXT = `
   cursor: pointer;
   background: #ffffff;
   color: #0f1419;
-  /* 图标按 X 图标的占比放大（X 图标约 26px / 按钮 56px） */
-  font-size: 36px;
+  /* 图标：✦ 旋转 45°（四角分别朝左上/右上/左下/右下，像 X 符号的变体）。
+     ⚠️ ✦ 字形外接 ≈0.68×font-size；旋转 45° 后外接会缩到 1/√2，
+     所以这里用 58px 补回来 → 旋转后外接 ≈28px（略大于 X 图标的 26px）。 */
+  font-size: 58px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -31,6 +33,8 @@ export const CSS_TEXT = `
 }
 .xc-fab:hover { background: #f7f9f9; transform: scale(1.06); }
 .xc-fab:active { transform: scale(0.96); }
+/* 星形绕自身中心旋转 45°：不要改 line-height，否则基线偏移会让它看起来没对准中心 */
+.xc-fab-mark { display: block; transform: rotate(45deg); }
 /* Panel 打开时收起悬浮球，避免与面板同时悬浮 */
 .xc-fab.xc-fab-hidden {
   opacity: 0;
