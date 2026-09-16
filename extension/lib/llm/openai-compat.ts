@@ -181,13 +181,54 @@ function drainObjects(buffer: string): { objects: string[]; rest: string } {
   return { objects, rest };
 }
 
+/**
+ * 模型偶尔把换行**直接写进 JSON 字符串**（非法 JSON），会让整条候选被丢弃。
+ * 这里只把「字符串内部」的裸 \n / \r / \t 转义，不改动结构，parse 失败时兜一次。
+ */
+function escapeRawControlCharsInStrings(src: string): string {
+  let out = '';
+  let inString = false;
+  let escaped = false;
+  for (const ch of src) {
+    if (inString) {
+      if (escaped) {
+        out += ch;
+        escaped = false;
+      } else if (ch === '\\') {
+        out += ch;
+        escaped = true;
+      } else if (ch === '"') {
+        out += ch;
+        inString = false;
+      } else if (ch === '\n') {
+        out += '\\n';
+      } else if (ch === '\r') {
+        out += '\\r';
+      } else if (ch === '\t') {
+        out += '\\t';
+      } else {
+        out += ch;
+      }
+      continue;
+    }
+    if (ch === '"') inString = true;
+    out += ch;
+  }
+  return out;
+}
+
 /** 单个已闭合片段 → 候选；结构不合法就丢弃（宁可少一条也不出错行） */
 function candidatesFromFragment(fragment: string): RawCandidate[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(fragment);
   } catch {
-    return [];
+    // 常见原因：text 里混进了裸换行。转义后重试一次，仍失败才丢弃
+    try {
+      parsed = JSON.parse(escapeRawControlCharsInStrings(fragment));
+    } catch {
+      return [];
+    }
   }
   if (Array.isArray(parsed)) return parsed.filter(isCandidate);
   if (parsed && typeof parsed === 'object') {
@@ -212,7 +253,13 @@ function parseCandidateLine(raw: string): RawCandidate | null {
     const obj = JSON.parse(line) as RawCandidate;
     if (typeof obj?.text === 'string' && obj.text.trim()) return obj;
   } catch {
-    /* 落到正则兜底 */
+    // 兜一次：字符串内的裸换行转义后重试
+    try {
+      const obj = JSON.parse(escapeRawControlCharsInStrings(line)) as RawCandidate;
+      if (typeof obj?.text === 'string' && obj.text.trim()) return obj;
+    } catch {
+      /* 落到正则兜底 */
+    }
   }
 
   const textMatch = line.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
@@ -268,16 +315,31 @@ function parseFullResponse(content: string, styles: StyleConfig[]): RawCandidate
   // 先试整体 JSON（有的模型仍会返回数组）
   const stripped = trimmed.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
   if (stripped.startsWith('{') || stripped.startsWith('[')) {
-    try {
-      const parsed = JSON.parse(stripped) as { replies?: RawCandidate[] } | RawCandidate[];
-      const arr = Array.isArray(parsed) ? parsed : parsed.replies;
-      if (Array.isArray(arr)) {
-        return arr.filter((r) => typeof r?.text === 'string' && r.text.trim());
+    for (const attempt of [stripped, escapeRawControlCharsInStrings(stripped)]) {
+      try {
+        const parsed = JSON.parse(attempt) as { replies?: RawCandidate[] } | RawCandidate[];
+        const arr = Array.isArray(parsed) ? parsed : parsed.replies;
+        if (Array.isArray(arr)) {
+          return arr.filter((r) => typeof r?.text === 'string' && r.text.trim());
+        }
+      } catch {
+        /* 换一种写法再试 */
       }
-    } catch {
-      /* 落到逐行解析 */
     }
   }
+
+  // 花括号配对切分：对「字符串里的裸换行」免疫（逐行切会把一条拆碎）
+  const byObject: RawCandidate[] = [];
+  const seenText = new Set<string>();
+  for (const fragment of drainObjects(stripped).objects) {
+    for (const cand of candidatesFromFragment(fragment)) {
+      const key = cand.text.trim();
+      if (seenText.has(key)) continue;
+      seenText.add(key);
+      byObject.push(cand);
+    }
+  }
+  if (byObject.length > 0) return byObject;
 
   const byLine = stripped
     .split('\n')

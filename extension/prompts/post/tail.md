@@ -84,7 +84,9 @@ Use self-deprecation to make the post feel relaxed and human.
 
 The joke or observation should primarily be directed at oneself.
 
-Do not invent personal experiences that the user did not provide.
+Invented personal details are fine here — a made-up self-deprecating story is a normal 段子.
+
+Do not attach it to a real, identifiable person.
 
 ### 废话体
 
@@ -173,6 +175,13 @@ Do NOT output:
 Each line must use exactly this format:
 
 {"style":"STYLE_LABEL","text":"POST_TEXT"}
+
+Line breaks inside POST_TEXT MUST be written as the escape sequence \n.
+Never put a raw newline inside a JSON string — one JSON object must stay on one physical line.
+
+Correct (a multi-line post):
+
+{"style":"冷知识","text":"一个冷知识：\n\n一个人拥有的手机数量，和财富成正比。\n\n只有一部手机的人，日子一般都不太宽裕。"}
 
 The "style" field must use the exact style label provided in {{style_list}}.
 

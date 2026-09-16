@@ -177,6 +177,11 @@ Better:
 
 15. Do not make all three topics sound like motivational quotes.
 
+16. Line breaks are part of the style. Break a topic into short lines separated by a blank line
+    rather than one solid sentence.
+
+17. Emoji, repeated punctuation, and casual or rough wording are fine when they fit the topic.
+
 ## 7. NATURALNESS
 
 The three topics should feel different from one another.
@@ -250,11 +255,14 @@ Each topic must be under 120 characters.
 
 Output ONLY one JSON object per line.
 
-Output exactly 3 lines.
+Output exactly 3 JSON objects.
 
 Use this schema:
 
 {"style":"<style name>","text":"<topic>"}
+
+Line breaks inside a topic MUST be written as the escape sequence \n.
+Never put a raw newline inside a JSON string — one JSON object must stay on one physical line.
 
 The output must be in exactly this order:
 
