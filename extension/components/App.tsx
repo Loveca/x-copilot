@@ -55,6 +55,19 @@ const POST_SPIKE_TEXT =
 /** 「灵感来源」区的三个 tab（默认「水贴」；水贴内容是自动生成的，不是"点出来"的） */
 type IdeaTab = 'idea' | 'hot' | 'trend';
 
+/**
+ * 当前选中的灵感来源（发帖用）。只存 ref：runGenerate 读它保持回调引用稳定，
+ * 避免进 deps 引发 detector effect 重建（历史坑）。
+ */
+type PickedSource = {
+  kind: 'quick' | 'hot' | 'trend';
+  handle?: string;
+  text?: string;
+  engagement?: string;
+  trendName?: string;
+  trendContent?: string;
+};
+
 /** 按风格把候选分组（保持首次出现的顺序），同风格多条合并进一张卡。仅供回复模式使用 */
 function groupByStyle(replies: ReplyCandidate[]): Array<{ style: string; items: ReplyCandidate[] }> {
   const groups: Array<{ style: string; items: ReplyCandidate[] }> = [];
@@ -84,6 +97,8 @@ export function App() {
   // 最近一次指针按下是否落在我们面板里：点面板内**不可聚焦**的区域（卡片正文、空白）时，
   // 浏览器会把焦点先退回 body，focusout 的 relatedTarget 变成 null，只靠焦点判断会误关面板
   const pointerInPanelRef = useRef(false);
+  // 当前灵感来源（发帖 prompt 据此拼装「来源片段」）。只存 ref，不进任何回调 deps
+  const pickedSourceRef = useRef<PickedSource>({ kind: 'quick' });
   // 水贴是否已自动尝试过生成：失败后不再自动重试（否则 effect 会反复触发），「换一批」可手动重来
   const ideaAttemptedRef = useRef(false);
   const [open, setOpen] = useState(false);
@@ -167,10 +182,8 @@ export function App() {
     ) => {
       const cleanIntent = intentText.trim();
       const currentMode = modeRef.current;
-      // 选题 chip 已废弃：点灵感直接填进输入框（intent），不再单独传 topic
-      const topic = '';
       // 缓存键带上模式：同一条推文的回复结果与发帖草稿不能混
-      const key = cacheKey(currentMode, target?.id, cleanIntent, topic, source ?? '');
+      const key = cacheKey(currentMode, target?.id, cleanIntent, '', source ?? '');
 
       // 缓存只用于「自动弹出时避免重复请求」。
       // 手动点「生成回复 / 重新生成 / 按这个想法生成」一律真发请求 ——
@@ -256,12 +269,22 @@ export function App() {
         intent: cleanIntent || undefined,
       };
       if (source === 'idea') {
-        // 随手发：三件套成品句，不带任何页面语境
+        // 「随便聊聊」：产出 3 条话题，不带任何页面语境
         options.source = 'idea';
       } else if (currentMode === 'post') {
-        // 发帖模式额外带上时间线语境（当前页面互动最高的几条）
+        // 发帖模式额外带上时间线语境（当前页面互动最高的几条）+ 当前灵感来源
         options.contextTweets = collectTimelineTweets(5);
-        if (topic) options.topic = topic;
+        const pick = pickedSourceRef.current;
+        options.sourceKind = pick.kind;
+        if (pick.kind === 'hot') {
+          options.inspiration = {
+            handle: pick.handle,
+            text: pick.text,
+            engagement: pick.engagement,
+          };
+        } else if (pick.kind === 'trend') {
+          options.trend = { name: pick.trendName, content: pick.trendContent };
+        }
       }
       port.postMessage({ tweet: target, options });
     },
@@ -446,8 +469,9 @@ export function App() {
     [applyMode, tweet]
   );
 
-  /** 点选一条灵感 → 填进输入框（不直接生成、不跳过输入框）。可反复点其他条覆盖 */
-  const pickIdeaText = useCallback((text: string) => {
+  /** 点选一条灵感 → 记录来源（供发帖 prompt 拼装）+ 填进输入框（不直接生成、不跳过输入框）。可反复点其他条覆盖 */
+  const pickSourceItem = useCallback((pick: PickedSource, text: string) => {
+    pickedSourceRef.current = pick;
     setIntent(text);
     intentRef.current?.focus();
   }, []);
@@ -471,6 +495,7 @@ export function App() {
   const selectHot = useCallback(() => {
     setIdeaTab('hot');
     setIntent('');
+    pickedSourceRef.current = { kind: 'hot' };
     const list = collectTimelineTweets(5);
     setHotTweets(list);
     if (list.length === 0) setToast('当前页面没扫到帖子，往下滚一点再试');
@@ -480,13 +505,15 @@ export function App() {
   const selectTrends = useCallback(() => {
     setIdeaTab('trend');
     setIntent('');
+    pickedSourceRef.current = { kind: 'trend' };
     const list = collectTrends(10);
     setTrends(list);
     if (list.length === 0) setToast('没读到趋势栏，把浏览器窗口拉宽一点再试');
   }, []);
 
-  /** 点水贴里的一条 → 填进面板输入框（列表保持不动，可反复点其他两条覆盖） */
+  /** 点随便聊聊里的一条 → 填进面板输入框（列表保持不动，可反复点其他两条覆盖） */
   const useIdea = useCallback((item: ReplyCandidate) => {
+    pickedSourceRef.current = { kind: 'quick' };
     setIntent(item.text);
     setFilledIdeaId(item.id);
   }, []);
@@ -668,7 +695,7 @@ export function App() {
                 {generating && genSource === 'idea' && (
                   <span className="xc-idea-busy">
                     <span className="xc-spin dark" />
-                    {elapsedMs > 800 ? `${(elapsedMs / 1000).toFixed(1)}s` : '正在想……'}
+                    {elapsedMs > 800 ? `${(elapsedMs / 1000).toFixed(1)}s` : '正在想话题……'}
                   </span>
                 )}
               </div>
@@ -679,6 +706,7 @@ export function App() {
                   onClick={() => {
                     setIdeaTab('idea');
                     setIntent('');
+                    pickedSourceRef.current = { kind: 'quick' };
                   }}
                   title="顶级认知 / 冷知识 / 扎心真相，各来一条"
                 >
@@ -758,7 +786,17 @@ export function App() {
                     key={t.id ?? i}
                     type="button"
                     className="xc-idea-item"
-                    onClick={() => pickIdeaText(t.text.replace(/\s+/g, ' ').trim().slice(0, 160))}
+                    onClick={() =>
+                      pickSourceItem(
+                        {
+                          kind: 'hot',
+                          handle: t.authorHandle ?? t.author,
+                          text: t.text.slice(0, 400),
+                          engagement: `♥ ${t.likeCount ?? 0} · 回复 ${t.replyCount ?? 0}`,
+                        },
+                        t.text.replace(/\s+/g, ' ').trim().slice(0, 160)
+                      )
+                    }
                   >
                     <div className="xc-idea-item-meta">
                       {t.authorHandle ?? t.author ?? '未知'} · ♥ {t.likeCount ?? 0} · 回复{' '}
@@ -777,7 +815,12 @@ export function App() {
                     key={t.topic}
                     type="button"
                     className="xc-trend-item"
-                    onClick={() => pickIdeaText(t.topic)}
+                    onClick={() =>
+                      pickSourceItem(
+                        { kind: 'trend', trendName: t.topic, trendContent: t.category ?? '' },
+                        t.topic
+                      )
+                    }
                   >
                     <span className="xc-trend-rank">{t.rank}</span>
                     <span className="xc-trend-topic">{t.topic}</span>

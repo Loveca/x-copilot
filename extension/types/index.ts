@@ -53,15 +53,38 @@ export interface GenerateOptions {
   intent?: string;
   /** 帖子图片，已由 background 取回并编码为 data URL（取不到时为空数组） */
   imageDataUrls?: string[];
-  /** 时间线语境：当前页面互动较高的若干条帖子（发帖模式的热点型用） */
+  /** 时间线语境：当前页面互动较高的若干条帖子（发帖模式用） */
   contextTweets?: TweetContext[];
-  /** 发帖选题：用户从「热帖 / 趋势」里点的那条，生成时围绕它写（可选） */
-  topic?: string;
   /**
-   * 发帖来源。'idea' = 面板上的「随手发」（水贴三件套）：
-   * 生成三句随时能发的成品短句，不走 postStyles，也不带任何页面语境。
+   * 发帖灵感来源：quick = 随便聊聊（用户自己的想法）；hot = Feed 热帖；trend = 热点。
+   * 决定发帖 prompt 拼装哪一个来源片段（拆片段按需拼装）。
+   */
+  sourceKind?: PostSourceKind;
+  /** 选中的 Feed 热帖（sourceKind = 'hot' 时） */
+  inspiration?: PostInspiration;
+  /** 选中的热点（sourceKind = 'trend' 时） */
+  trend?: PostTrend;
+  /**
+   * 灵感区「随便聊聊」：产出 3 条话题（顶级认知 / 冷知识 / 扎心真相），
+   * 不走 postStyles，也不带任何页面语境。
    */
   source?: 'idea';
+}
+
+/** 发帖灵感来源种类 */
+export type PostSourceKind = 'quick' | 'hot' | 'trend';
+
+/** 选中的 Feed 热帖 */
+export interface PostInspiration {
+  handle?: string;
+  text?: string;
+  engagement?: string;
+}
+
+/** 选中的热点 */
+export interface PostTrend {
+  name?: string;
+  content?: string;
 }
 
 export interface LLMConfig {

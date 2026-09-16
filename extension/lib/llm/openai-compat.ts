@@ -7,13 +7,16 @@ import {
 import type {
   GenerateOptions,
   LLMConfig,
+  PostInspiration,
+  PostSourceKind,
+  PostTrend,
   ReplyCandidate,
   StyleConfig,
   TweetContext,
 } from '@/types';
 import type { LLMProvider, LLMStreamHandlers } from './provider';
 import { MAX_VISION_IMAGES } from './vision';
-import { renderPrompt } from './templates';
+import { renderPostPrompt, renderPrompt } from './templates';
 
 const REQUEST_TIMEOUT_MS = 60_000;
 /** 进度回调节流：避免每个 token 都往 content script 推一条消息 */
@@ -63,60 +66,50 @@ function buildPrompt(
  * 与回复不同：没有"必须贴合原推"的约束，要自己立论；
  * 但有更多输入源——用户主题、当前看的帖子（灵感）、时间线上正在热的内容。
  */
+type PostSource = {
+  kind: PostSourceKind;
+  handle?: string;
+  text?: string;
+  engagement?: string;
+  trendName?: string;
+  trendContent?: string;
+};
+
+/** 来源种类 → 模板里 {{source_type}} 的显示名 */
+const POST_SOURCE_LABEL: Record<PostSourceKind, string> = {
+  quick: '随便聊聊',
+  hot: 'Feed 热帖',
+  trend: '热点',
+};
+
 function buildPostPrompt(
   styles: StyleConfig[],
-  intent?: string,
-  contextTweets: TweetContext[] = [],
-  inspiration?: TweetContext | null,
-  topic?: string
+  intent: string | undefined,
+  contextTweets: TweetContext[],
+  source: PostSource
 ): string {
   const total = styles.reduce((sum, s) => sum + s.count, 0);
-  const styleLines = styles
+  const styleList = styles
     .map((s, i) => `${i + 1}. ${s.label} — ${s.count} 条：${s.desc}`)
     .join('\n');
-
-  const parts = [
-    'Help a real person write their own X post. This is NOT a reply to anybody.',
-    '',
-    'Rules:',
-    '1. Sound like a person thinking out loud, not a brand announcement or press release.',
-    '2. No generic AI phrasing, no filler encouragement, no hashtag spam.',
-    '3. Under 280 characters each. Same language as the topic the user gave.',
-    '4. Never invent facts, numbers, or personal experiences the user did not provide.',
-    `5. Styles, in this exact order and count:\n${styleLines}`,
-    `6. Total lines = ${total}. Lines of the same style must differ in angle.`,
-    '7. Output ONLY one JSON object per line, no array, no code fences, no extra text:',
-    '   {"style":"观点型","text":"..."}',
-  ];
-
-  if (intent) {
-    parts.push('', `The user's own idea (highest priority — every line must grow out of it): "${intent}"`);
-  }
-  if (topic) {
-    parts.push(
-      '',
-      'The user picked something to write about. Write an independent post about THIS',
-      '(never reply to it, even if it reads like a post):',
-      topic
-    );
-  }
-  if (inspiration?.text) {
-    parts.push(
-      '',
-      'A post the user is currently looking at. Use it only as inspiration — do NOT reply to it,',
-      `write an independent post of their own: ${inspiration.authorHandle ?? 'someone'}: ${inspiration.text}`
-    );
-  }
-  if (contextTweets.length > 0) {
-    parts.push(
-      '',
-      'What is getting engagement on their timeline right now (context for 热点型 / 反向型 only; never copy it):'
-    );
-    contextTweets.forEach((t) => {
-      parts.push(`- ${t.authorHandle ?? t.author ?? 'someone'}: ${t.text.slice(0, 180)}`);
-    });
-  }
-  return parts.join('\n');
+  const styleOrder = styles.map((s, i) => `${i + 1}. ${s.label} × ${s.count}`).join('\n');
+  const timeline = contextTweets
+    .map((t) => `- ${t.authorHandle ?? t.author ?? 'someone'}: ${t.text.slice(0, 180)}`)
+    .join('\n');
+  return renderPostPrompt(source.kind, {
+    user_intent: intent?.trim() ?? '',
+    source_type: POST_SOURCE_LABEL[source.kind],
+    inspiration_author: source.handle ?? '',
+    inspiration_handle: source.handle ?? '',
+    inspiration_text: source.text ?? '',
+    inspiration_engagement: source.engagement ?? '',
+    trend_name: source.trendName ?? '',
+    trend_content: source.trendContent ?? '',
+    timeline_context: timeline,
+    style_list: styleList,
+    style_order: styleOrder,
+    total_count: total,
+  });
 }
 
 /**
@@ -326,7 +319,6 @@ function resolveGeneration(options?: GenerateOptions): {
   mode: 'reply' | 'post';
   /** 随手发：走内置三件套，不读 postStyles，也不带任何页面语境 */
   ideaMode: boolean;
-  topic?: string;
   contextTweets: TweetContext[];
 } {
   const mode: 'reply' | 'post' = options?.mode === 'post' ? 'post' : 'reply';
@@ -347,7 +339,6 @@ function resolveGeneration(options?: GenerateOptions): {
     styles,
     expected: expectedStyleSequence(styles),
     intent: options?.intent?.trim().slice(0, 300) || undefined,
-    topic: options?.topic?.trim().slice(0, 200) || undefined,
     contextTweets: options?.contextTweets ?? [],
   };
 }
@@ -379,8 +370,12 @@ export class OpenAICompatProvider implements LLMProvider {
   private mode: 'reply' | 'post' = 'reply';
   /** 随手发模式：用三件套 prompt，忽略选题与页面语境 */
   private ideaMode = false;
-  /** 发帖选题（面板上从「热帖 / 趋势」点选的那条） */
-  private topic: string | undefined;
+  /** 发帖灵感来源种类（决定拼装哪一个来源片段） */
+  private sourceKind: PostSourceKind = 'quick';
+  /** 选中的 Feed 热帖（sourceKind = 'hot' 时） */
+  private inspiration: PostInspiration | undefined;
+  /** 选中的热点（sourceKind = 'trend' 时） */
+  private trend: PostTrend | undefined;
   /** 帖子模式的时间线语境 */
   private contextTweets: TweetContext[] = [];
 
@@ -408,7 +403,14 @@ export class OpenAICompatProvider implements LLMProvider {
     const prompt = this.ideaMode
       ? buildIdeaPrompt(intent)
       : this.mode === 'post'
-        ? buildPostPrompt(styles, intent, this.contextTweets, context, this.topic)
+        ? buildPostPrompt(styles, intent, this.contextTweets, {
+            kind: this.sourceKind,
+            handle: this.inspiration?.handle,
+            text: this.inspiration?.text,
+            engagement: this.inspiration?.engagement,
+            trendName: this.trend?.name,
+            trendContent: this.trend?.content,
+          })
         : buildPrompt(context as TweetContext, styles, intent, images.length > 0);
     // 多模态消息：文字 + image_url 内容块（图片只能出现在 user 消息里，这是各家的共同约束）
     const content =
@@ -509,12 +511,14 @@ export class OpenAICompatProvider implements LLMProvider {
     options: GenerateOptions | undefined,
     handlers: LLMStreamHandlers
   ): Promise<ReplyCandidate[]> {
-    const { styles, expected, intent, mode, ideaMode, topic, contextTweets } =
+    const { styles, expected, intent, mode, ideaMode, contextTweets } =
       resolveGeneration(options);
     this.mode = mode;
     this.ideaMode = ideaMode;
-    this.topic = topic;
     this.contextTweets = contextTweets;
+    this.sourceKind = options?.sourceKind ?? 'quick';
+    this.inspiration = options?.inspiration;
+    this.trend = options?.trend;
     const imageDataUrls = (options?.imageDataUrls ?? []).slice(0, MAX_VISION_IMAGES);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -694,12 +698,14 @@ export class OpenAICompatProvider implements LLMProvider {
     context: TweetContext | null,
     options?: GenerateOptions
   ): Promise<ReplyCandidate[]> {
-    const { styles, expected, intent, mode, ideaMode, topic, contextTweets } =
+    const { styles, expected, intent, mode, ideaMode, contextTweets } =
       resolveGeneration(options);
     this.mode = mode;
     this.ideaMode = ideaMode;
-    this.topic = topic;
     this.contextTweets = contextTweets;
+    this.sourceKind = options?.sourceKind ?? 'quick';
+    this.inspiration = options?.inspiration;
+    this.trend = options?.trend;
     const imageDataUrls = (options?.imageDataUrls ?? []).slice(0, MAX_VISION_IMAGES);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
