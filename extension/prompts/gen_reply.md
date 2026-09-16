@@ -127,12 +127,6 @@ Do not deliberately make the writing sloppy.
 
 Do not use internet slang merely to appear "online".
 
-Line breaks are part of the style. Do not write one solid sentence:
-
-- break the reply into short lines;
-- a blank line between chunks is normal;
-- inside the JSON text field, write every line break as the escape sequence \n.
-
 Emoji, repeated punctuation, and casual or rough wording are all fine when they fit the tone.
 
 Do not sanitize the language into something polite and tidy.
@@ -257,9 +251,6 @@ Return exactly one JSON object per line.
 Schema:
 
 {"style":"<style name>","text":"<reply>"}
-
-Line breaks inside the reply MUST be written as the escape sequence \n.
-Never put a raw newline inside a JSON string — one JSON object must stay on one physical line.
 
 The "style" field must use the exact style label from STYLE CONFIG.
 
