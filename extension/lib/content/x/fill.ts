@@ -1,22 +1,42 @@
 /**
- * 把回复写入 X 的 Reply composer（替换语义）。
+ * 把文本写进 X 的 composer（回复框 / 主发帖框，替换语义）。
  *
- * X 的 composer 是 contenteditable + Lexical 编辑器，不能用 innerText 直接赋值，
- * execCommand('insertText') 会双重插入（浏览器默认行为 + 编辑器各处理一次，
- * 其中一份游离在编辑器状态外，形成删不掉的"影子"）。
+ * X 的 composer 是 contenteditable + Lexical 编辑器。这里有两个坑：
  *
- * 策略：
- *   1. focus → execCommand('selectAll') + execCommand('delete') 清空（替换语义）
- *   2. 优先派发合成 paste 事件 —— Lexical 的 paste handler 会 preventDefault
- *      并把文本纳入自己的状态，只插入一次，DOM 与编辑器状态同步
- *   3. 失败则降级 execCommand('insertText')（此时选区已清空，不会再叠加）
- *   4. 校验：清空后填入的 composer 文本应与目标文本完全一致
+ * ① 「假换行」：只把 `\n` 塞进文本节点是不行的。CSS `white-space: pre-wrap` 会把文本节点里的
+ *    裸 `\n` 渲染成换行，**看着完全正常**，但那不是编辑器认可的换行节点 —— X 提交时按自己的
+ *    节点模型序列化，裸 `\n` 被丢掉。用户看到的现象就是：
+ *    「面板里有换行、composer 里也有换行，一发出去变成一整段」。
+ *    必须让编辑器建出**真正的换行节点**（<br> / LineBreakNode），也就是"真按了回车"。
+ *
+ * ② 校验不能拿 textContent 跟原文严格比对：真换行节点的 textContent 里**没有** `\n`
+ *    （<br> 不产生字符），严格比对会误判成"没填进去"→ 把已填好的内容清掉重来 →
+ *    最后反而留下裸 `\n` 版本。**这正是之前换行丢失的根因。**
+ *
+ * 策略（逐级降级，每级都验证「文字对得上 + 没有裸 \n」）：
+ *   1. 合成 paste —— 走编辑器的粘贴处理，它会按行拆成真正的换行节点
+ *   2. 逐行插入 + insertLineBreak —— 直接让编辑器插入它自己的换行节点
+ *   3. 兜底：整体 insertText
  *
  * ⚠️ 只填入，绝不点击 Reply / Send / Post。
  */
 
-function readBack(el: HTMLElement, expected: string): boolean {
-  return (el.textContent ?? '').trim() === expected.trim();
+/** 文本节点里是否残留裸 \n（= 假换行，提交时会被 X 吞掉） */
+function hasRawNewlineInTextNodes(el: HTMLElement): boolean {
+  const walk = (node: Node): boolean => {
+    if (node.nodeType === Node.TEXT_NODE) return (node.nodeValue ?? '').includes('\n');
+    return Array.from(node.childNodes).some(walk);
+  };
+  return walk(el);
+}
+
+/**
+ * 内容是否已写入。忽略空白差异：
+ * 真换行节点的 textContent 不含 \n，各行文字会直接连在一起。
+ */
+function sameText(el: HTMLElement, expected: string): boolean {
+  const squash = (s: string) => s.replace(/[\s\u200b]+/g, '');
+  return squash(el.textContent ?? '') === squash(expected);
 }
 
 function clearComposer(el: HTMLElement): void {
@@ -29,7 +49,7 @@ function clearComposer(el: HTMLElement): void {
   }
 }
 
-function pasteText(el: HTMLElement, text: string): boolean {
+function pasteText(el: HTMLElement, text: string): void {
   try {
     const dt = new DataTransfer();
     dt.setData('text/plain', text);
@@ -39,33 +59,76 @@ function pasteText(el: HTMLElement, text: string): boolean {
       cancelable: true,
     });
     el.dispatchEvent(ev);
-    return true;
   } catch {
-    return false;
+    /* 交给下一级策略 */
   }
+}
+
+/** 派发回车键，让编辑器把它当作"用户按了回车"，从而建出真正的换行节点 */
+function pressEnter(el: HTMLElement): void {
+  const init = {
+    key: 'Enter',
+    code: 'Enter',
+    keyCode: 13,
+    which: 13,
+    bubbles: true,
+    cancelable: true,
+  };
+  el.dispatchEvent(new KeyboardEvent('keydown', init));
+  el.dispatchEvent(new KeyboardEvent('keyup', init));
+}
+
+/** 逐行写入，行间用 insertLineBreak（编辑器原生换行节点），插不进就退回合成回车 */
+function insertLineByLine(el: HTMLElement, text: string): void {
+  const lines = text.split('\n');
+  el.focus();
+  for (let i = 0; i < lines.length; i++) {
+    if (i > 0) {
+      let broke = false;
+      try {
+        broke = document.execCommand('insertLineBreak');
+      } catch {
+        broke = false;
+      }
+      if (!broke) pressEnter(el);
+    }
+    if (!lines[i]) continue;
+    try {
+      document.execCommand('insertText', false, lines[i]);
+    } catch {
+      /* 继续，最后由校验兜底 */
+    }
+  }
+}
+
+/** 填入是否可信：文字对得上，且（原文含换行时）没有留下裸 \n */
+function isGoodFill(el: HTMLElement, expected: string): boolean {
+  if (!sameText(el, expected)) return false;
+  if (!expected.includes('\n')) return true;
+  return !hasRawNewlineInTextNodes(el);
 }
 
 export function fillReplyComposer(el: HTMLElement, text: string): boolean {
   const target = text.trim();
 
-  // 清空旧内容（替换而不是叠加）
+  // 1) 合成 paste（首选：走编辑器粘贴处理，一次插入、状态同步）
   clearComposer(el);
-
-  // 首选：合成 paste 事件（编辑器状态同步，单次插入）
   pasteText(el, target);
-  if (readBack(el, target)) {
-    return true;
-  }
+  if (isGoodFill(el, target)) return true;
 
-  // 降级：清空后 execCommand('insertText')（选区为空，不会叠加）
+  // 2) paste 没能建出真换行 → 逐行插入 + 原生换行
+  clearComposer(el);
+  insertLineByLine(el, target);
+  if (isGoodFill(el, target)) return true;
+
+  // 3) 兜底：整体 insertText（换行可能仍是假的，但没有更好的办法）
   clearComposer(el);
   try {
     document.execCommand('insertText', false, target);
   } catch {
     return false;
   }
-
-  return readBack(el, target);
+  return sameText(el, target);
 }
 
 /** 同一套写入策略，Phase 2 的主发帖框也用它（命名去掉 reply 限定） */
