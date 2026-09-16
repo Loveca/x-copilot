@@ -13,6 +13,7 @@ import type {
 } from '@/types';
 import type { LLMProvider, LLMStreamHandlers } from './provider';
 import { MAX_VISION_IMAGES } from './vision';
+import { renderPrompt } from './templates';
 
 const REQUEST_TIMEOUT_MS = 60_000;
 /** 进度回调节流：避免每个 token 都往 content script 推一条消息 */
@@ -35,71 +36,26 @@ function buildPrompt(
   const styleLines = styles
     .map((s, i) => `${i + 1}. ${s.label} — ${s.count} 条：${s.desc}`)
     .join('\n');
-
-  const parts = [
-    'You are a longtime, heavy X user replying from your own account — direct, unafraid to',
-    '抬杠 when it fits, good at 阴阳怪气 and cutting straight to the point. You never use',
-    'customer-service or corporate phrasing, and you never sound like you are summarizing.',
-    'Write natural replies to the X post below, as if written by this person.',
-    '',
-    'Core rules (always apply):',
-    '1. Never restate the post. No generic AI phrasing ("值得进一步关注" etc).',
-    '2. Reply in 中文, regardless of what language the post itself is in —',
-    "X already auto-translates for readers, so you do not need to match the post's language.",
-    '3. Under 140 characters each.',
-    '4. Do not fabricate facts, statistics, or claims that could be mistaken as true.',
-    'Obvious rhetorical exaggeration or a one-line joke is fine — that is style, not a factual claim.',
-    '5. Tone contrast to learn (never reuse these lines or topics):',
-    'Bad (AI味): "这个观点很有意思，值得我们进一步思考和讨论。"',
-    'Good (观点): "说得好听，但真正卡脖子的从来不是技术，是谁愿意先掏这笔钱。"',
-    'Bad (水贴，AI味): "确实，这确实是一个值得关注的现象。"',
-    'Good (水贴): "笑死，这条评论区比原帖精彩多了。"',
-    '6. Output ONLY one JSON object per line, no array, no code fences, no extra text;',
-    'write each line as soon as it is ready:',
-    '{"style":"观点","text":"..."}',
-    '',
-    '【风格配比 — 本次任务】',
-    `按此顺序输出，共 ${total} 条：`,
-    styleLines,
-    '同风格的多条必须角度不同。',
-    '',
-    '【目标帖子】',
-    `Post by ${context.author ?? 'unknown'} (${context.authorHandle ?? ''}):`,
-    // 纯图帖没有正文，明确告知模型，否则它会以为漏了内容而自由发挥
-    context.text.trim() ? context.text : '(the post has no text, only the image(s) attached below)',
-  ];
-
-  if (intent) {
-    parts.push(
-      '',
-      '【用户意图 / 指定风格】',
-      '用户在输入框写下：',
-      `"${intent}"`,
-      '这可能是用户想表达的意思，也可能是用户指定的风格。',
-      'MOST IMPORTANT — Every line must convey THIS point,',
-      'phrased naturally per its style (no verbatim quoting, no unrelated claims).',
-      '',
-      '【冲突优先级】',
-      '若用户意图与某条风格冲突（如“反向”要求有礼貌，而用户要求飙脏话），',
-      '以用户意图为准，仅保留该条的结构（如“反向”仍是提出异议）。'
-    );
-  }
-
-  if (context.quotedTweet?.text) {
-    parts.push(
-      `Quoted post by ${context.quotedTweet.author ?? 'unknown'}: ${context.quotedTweet.text}`
-    );
-  }
-
-  if (hasImages) {
-    parts.push(
-      '',
-      'The post also has image(s) attached to this message. Treat them as context for what the post',
-      'is about. Do not describe or caption the image(s) unless that is clearly the point of the',
-      'reply, and never state details you cannot actually see in them.'
-    );
-  }
-  return parts.join('\n');
+  const quoted = context.quotedTweet?.text
+    ? `${context.quotedTweet.author ?? 'unknown'}: ${context.quotedTweet.text}`
+    : '';
+  // 纯图帖没有正文，明确告知模型，否则它会以为漏了内容而自由发挥
+  const postText = context.text.trim()
+    ? context.text
+    : '(the post has no text, only the image(s) attached below)';
+  return renderPrompt('reply', {
+    author_name: context.author ?? 'unknown',
+    author_handle: context.authorHandle ?? '',
+    post_text: postText,
+    style_config: styleLines,
+    total_count: total,
+    max_length: 140,
+    user_intent: intent?.trim() ?? '',
+    quoted_post: quoted,
+    image_note: hasImages
+      ? 'The target post also has image(s) attached to this message. Treat them as context for what the post is about. Do not describe or caption the image(s) unless that is clearly the point of the reply, and never state details you cannot actually see in them.'
+      : '',
+  });
 }
 
 /**
@@ -179,28 +135,8 @@ const IDEA_STYLES: StyleConfig[] = [
  * 只要三句"随时能发、跟当下无关"的成品。
  */
 function buildIdeaPrompt(intent?: string): string {
-  const parts = [
-    'Write 3 standalone short X posts for a real person to publish.',
-    'They are fillers — posts that work at any time, with no news hook and no reply to anyone.',
-    '',
-    'One line per category, in this exact order:',
-    `1. ${IDEA_STYLES[0].label} — a counter-intuitive but defensible judgement, in one sentence.`,
-    `2. ${IDEA_STYLES[1].label} — a specific, checkable fact.`,
-    `3. ${IDEA_STYLES[2].label} — an uncomfortable truth stated plainly: no lecturing, no moralising.`,
-    '',
-    'Rules:',
-    '1. Under 120 characters each. Match the language of the user input.',
-    '2. Sound like a person, not a brand: no hashtags, no emoji spam, no call to follow.',
-    `3. For ${IDEA_STYLES[1].label}: only state a fact you are confident is true and checkable.`,
-    '   If unsure about one, pick a different fact. Never guess or half-remember.',
-    '4. Do not mention that these were generated, and add no commentary of your own.',
-    '5. Output ONLY one JSON object per line, no array, no code fences, no extra text:',
-    '   {"style":"冷知识","text":"..."}',
-  ];
-  if (intent) {
-    parts.push('', `The user would like them to relate to this idea: "${intent}"`);
-  }
-  return parts.join('\n');
+  // 「随便聊聊」现在产出 3 条话题（顶级认知 / 冷知识 / 扎心真相），供用户点选后填进输入框当引子
+  return renderPrompt('quickTopic', { user_input: intent?.trim() ?? '' });
 }
 
 interface RawCandidate {

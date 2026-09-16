@@ -195,7 +195,7 @@ export function App() {
       const writeResult = source === 'idea' ? setIdeaItems : setReplies;
       if (auto)
         setToast(currentMode === 'post' ? '正在为你起草帖子……' : '检测到新 Tweet，正在自动生成回复……');
-      else if (source === 'idea') setToast('正在想几句随时能发的……');
+      else if (source === 'idea') setToast('正在想几个能聊的话题……');
 
       const port = browser.runtime.connect({ name: GENERATE_PORT });
       activePortRef.current = port;
@@ -733,7 +733,7 @@ export function App() {
             {ideaTab === 'idea' && ideaItems.length === 0 && generating && genSource === 'idea' && (
               <div className="xc-idea-loading">
                 <span className="xc-spin dark" />
-                正在想几句 {elapsedMs > 800 ? `${(elapsedMs / 1000).toFixed(1)}s` : '……'}
+                正在想话题 {elapsedMs > 800 ? `${(elapsedMs / 1000).toFixed(1)}s` : '……'}
               </div>
             )}
 
