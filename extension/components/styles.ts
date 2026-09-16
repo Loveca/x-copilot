@@ -11,16 +11,20 @@ export const CSS_TEXT = `
 .xc-fab {
   position: fixed;
   z-index: 2147483646;
-  width: 44px; height: 44px;
-  border-radius: 50%;
+  /* 与 X 自己的悬浮按钮（Grok / 私信）对齐：56×56 圆角矩形、圆角 12px、
+     同一套悬浮阴影。数值按截图实测（截图 125% 缩放，X 按钮 69 设备px → 55.2 CSSpx）。 */
+  width: 56px; height: 56px;
+  border-radius: 12px;
   border: 1px solid #cfd9de;
   cursor: pointer;
   background: #ffffff;
   color: #0f1419;
-  font-size: 20px;
-  line-height: 42px;
-  text-align: center;
-  box-shadow: 0 4px 14px rgba(15, 20, 25, 0.18);
+  /* 图标按 X 图标的占比放大（X 图标约 26px / 按钮 56px） */
+  font-size: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 15px rgba(101, 119, 134, 0.2), 0 0 3px 1px rgba(101, 119, 134, 0.15);
   user-select: none;
   touch-action: none;
   transition: background 0.15s ease, transform 0.18s ease, opacity 0.18s ease;

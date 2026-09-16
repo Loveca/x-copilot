@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
 
+/** 悬浮按钮尺寸，与 X 自己的悬浮按钮（Grok / 私信）一致，改这里要同步 styles.ts 的 .xc-fab */
+const FAB_SIZE = 56;
+/** 默认离右边缘的间距 */
+const FAB_MARGIN = 16;
+
 const DEFAULT_POS = () => ({
-  x: window.innerWidth - 76,
+  x: window.innerWidth - FAB_SIZE - FAB_MARGIN,
   y: Math.round(window.innerHeight * 0.45),
 });
 
@@ -35,8 +40,8 @@ export function FloatingButton({ open, onToggle }: Props) {
   const onPointerMove = (e: React.PointerEvent) => {
     const s = dragState.current;
     if (!s.dragging) return;
-    const nx = Math.min(Math.max(e.clientX - s.dx, 8), window.innerWidth - 52);
-    const ny = Math.min(Math.max(e.clientY - s.dy, 8), window.innerHeight - 52);
+    const nx = Math.min(Math.max(e.clientX - s.dx, 8), window.innerWidth - FAB_SIZE - 8);
+    const ny = Math.min(Math.max(e.clientY - s.dy, 8), window.innerHeight - FAB_SIZE - 8);
     if (Math.abs(nx - pos!.x) > 4 || Math.abs(ny - pos!.y) > 4) s.moved = true;
     setPos({ x: nx, y: ny });
   };
