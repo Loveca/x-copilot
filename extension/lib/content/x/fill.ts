@@ -1,19 +1,60 @@
 /**
  * 把文本写进 X 的 composer（回复框 / 主发帖框，替换语义）。
  *
- * ⚠️ 核心认知：X 的 composer 是 contenteditable + 富文本编辑器（Lexical / DraftJS 一类），
- *    它维护一份**自己的编辑器状态**，跟 DOM 是两回事：
- *    - 只把文字塞进 DOM（execCommand / 直接改 innerHTML）→ 看着有字，但**退格删不掉**，
- *      而且提交时换行会丢（编辑器状态里其实没有这段文字）。
- *    - 必须让编辑器"认账"。X 自己的判据是 **Post / Reply 按钮从 disabled 变可用**
- *      （`isPostButtonEnabled()`）—— 本文件拿它当每个策略的验收标准。
+ * ⚠️ 核心认知：**X 的 composer 是 DraftJS**（2026-09-16 用 probe 在 x.com 实测确认：
+ *    `{Lexical: false, DraftJS: true, ProseMirror: false}`）。
+ *    DraftJS 的 `EditorState` 是唯一真相，而且它**不监听 DOM 变化**：
+ *    - 只把文字塞进 DOM（直接改 innerHTML / 不走编辑器的写入）→ 看着有字
+ *      （CSS `white-space: pre-wrap` 把裸 `\n` 渲染成换行），但：
+ *      · **退格删不掉**（S2）—— Backspace 走 EditorState，状态里没这段文字，无事可删
+ *      · **提交时按 EditorState 序列化 → 换行全丢**（S1）——编辑器状态里根本没有这段文字
  *
- * 验收 = 文字对得上（忽略空白差异）**且** 按钮被点亮；拿不到按钮时退回只看文字。
- * 三个策略依次尝试，谁被编辑器认账就用谁；都不认账则保留文字并在 Console 打日志。
+ * 所以「成功」必须同时满足三件事，缺一不可：
+ *   1. 文字进了 DOM；
+ *   2. **X 认账** —— 同作用域内 Post / Reply 按钮从 disabled 变可用（`isPostButtonEnabled`）；
+ *   3. **换行是真的** —— 换行由编辑器节点（`<br>` / 块级元素）承载，
+ *      而不是裸 `\n` 躺在文本节点里靠 CSS 渲染出来。
+ *
+ * 三个策略依次试，每个都按上述三条验收；谁过了就用谁。
+ * 都不认账时**不再假装成功**：把文本复制到剪贴板，让用户 Ctrl+V —— 真实粘贴一定走
+ * 编辑器自己的粘贴处理，退格能删、换行能发出去，100% 等价于手动操作。
  *
  * ⚠️ 只填入，绝不点击 Reply / Send / Post。
  */
 import { isPostButtonEnabled } from './composer-detector';
+
+/** 候选策略（按"最可能被 DraftJS 认账"排序），见下方各自注释 */
+const STRATEGIES: { name: string; run: (el: HTMLElement, text: string) => void }[] = [
+  { name: '1-insertText', run: insertTextOnce },
+  { name: '2-合成beforeinput', run: beforeInputOnce },
+  { name: '3-合成paste', run: pasteOnce },
+  { name: '4-逐行+insertLineBreak', run: insertLineByLine },
+];
+
+/**
+ * 等待编辑器认账（按钮点亮）。
+ *
+ * ⚠️ 必须在写入**之后**轮询等待，不能同步读一次就下结论：
+ * DraftJS 的 onChange → React 状态 → 按钮 disabled 属性是一条异步链，
+ * 同步读到的必然是写入前的旧值 —— 那会把**已经填好**的结果判成失败，
+ * 继续降级到更差的策略（历史上最难查的一个假阴性）。
+ */
+const ACCEPT_POLL_MS = 60;
+const ACCEPT_TIMEOUT_MS = 1200;
+
+async function waitAccepted(
+  composer: HTMLElement,
+  timeout = ACCEPT_TIMEOUT_MS
+): Promise<boolean | null> {
+  const deadline = Date.now() + timeout;
+  let last: boolean | null = null;
+  for (;;) {
+    last = isPostButtonEnabled(composer);
+    if (last === true) return true;
+    if (Date.now() >= deadline) return last;
+    await new Promise((r) => setTimeout(r, ACCEPT_POLL_MS));
+  }
+}
 
 /**
  * 内容是否已写入。忽略空白差异：
@@ -21,7 +62,7 @@ import { isPostButtonEnabled } from './composer-detector';
  * 用严格等值比较会把"已经填好"误判成"没填进去"。
  */
 function sameText(el: HTMLElement, expected: string): boolean {
-  const squash = (s: string) => s.replace(/[\s\u200b]+/g, '');
+  const squash = (s: string) => s.replace(/[\s​]+/g, '');
   return squash(el.textContent ?? '') === squash(expected);
 }
 
@@ -34,25 +75,47 @@ function hasRawNewlineInTextNodes(el: HTMLElement): boolean {
   return walk(el);
 }
 
-/** 编辑器是否认账：X 的 Post / Reply 按钮是否可用。null = 找不到按钮，无法判断 */
-function editorAccepted(): boolean | null {
-  return isPostButtonEnabled();
+/**
+ * 换行是否是**编辑器认可的换行**（对应 S1）。
+ * 期望文本里没有换行 → 直接算过。
+ *
+ * ⚠️ 判定顺序很重要：「裸 `\n` 还在文本节点里」必须**先**作为否决项。
+ *    否则「有一个 DIV 装着整段带 `\n` 的文字」会因为"有块级子元素"被判成合格 ——
+ *    而那种情况恰恰就是假换行（DraftJS 一个 block 里塞了裸 `\n`，提交时丢换行）。
+ * 真换行 = 没有裸 `\n` 残留 **且** 有结构承载（`<br>` 或每个块级元素一行）。
+ */
+function newlinesAreReal(el: HTMLElement, expected: string): boolean {
+  const want = (expected.match(/\n/g) ?? []).length;
+  if (want === 0) return true;
+  // 裸 \n 还躺在文本节点里 → 假换行，提交时会被丢掉
+  if (hasRawNewlineInTextNodes(el)) return false;
+  // 没有裸 \n 了，换行必须有结构承载才算数
+  return (
+    el.querySelectorAll('br').length > 0 ||
+    [...el.children].some((c) => c.tagName === 'DIV' || c.tagName === 'P')
+  );
 }
 
-/** 填充前的清空（只在非空时做；不重复执行，避免把编辑器状态搞乱） */
+/**
+ * 填充前的清空。
+ * DraftJS 的状态更新滞后于 DOM，`selectAll` + `delete` **连做两遍**才能真正清干净
+ * （第一遍清 DOM，第二遍清 EditorState）—— 这是 dev.to 那份实测配方里的关键一步。
+ */
 function clearComposer(el: HTMLElement): void {
   el.focus();
   if ((el.textContent ?? '').trim() === '') return;
-  try {
-    document.execCommand('selectAll', false);
-    document.execCommand('delete', false);
-  } catch {
-    /* 忽略，后面的写入会覆盖选区 */
+  for (let i = 0; i < 2; i++) {
+    try {
+      document.execCommand('selectAll', false);
+      document.execCommand('delete', false);
+    } catch {
+      /* 忽略，后面的写入会覆盖选区 */
+    }
   }
 }
 
-/** 策略 1：全选 + 一次性 insertText（一步替换，不先删） */
-function insertAllOnce(el: HTMLElement, text: string): void {
+/** 策略 1：全选 + 一次性 insertText（走浏览器原生输入路径） */
+function insertTextOnce(el: HTMLElement, text: string): void {
   el.focus();
   try {
     document.execCommand('selectAll', false);
@@ -62,7 +125,23 @@ function insertAllOnce(el: HTMLElement, text: string): void {
   document.execCommand('insertText', false, text);
 }
 
-/** 策略 2：合成 paste 事件（走编辑器自己的粘贴处理，换行会成为编辑器认可的换行节点） */
+/** 策略 2：合成 beforeinput —— DraftJS 的 editOnBeforeInput 收到后会自己更新 EditorState */
+function beforeInputOnce(el: HTMLElement, text: string): void {
+  el.focus();
+  try {
+    const ev = new InputEvent('beforeinput', {
+      inputType: 'insertText',
+      data: text,
+      bubbles: true,
+      cancelable: true,
+    });
+    el.dispatchEvent(ev);
+  } catch {
+    /* 交给下一个策略 */
+  }
+}
+
+/** 策略 3：合成 paste 事件（走编辑器自己的粘贴处理，换行会成为编辑器认可的换行节点） */
 function pasteOnce(el: HTMLElement, text: string): void {
   try {
     const dt = new DataTransfer();
@@ -82,7 +161,7 @@ function pasteOnce(el: HTMLElement, text: string): void {
   }
 }
 
-/** 策略 3：逐行写入，行间用 insertLineBreak（编辑器原生换行节点） */
+/** 策略 4：逐行写入，行间用 insertLineBreak（编辑器原生换行节点） */
 function insertLineByLine(el: HTMLElement, text: string): void {
   const lines = text.split('\n');
   el.focus();
@@ -92,59 +171,83 @@ function insertLineByLine(el: HTMLElement, text: string): void {
   }
 }
 
-type Strategy = { name: string; run: (el: HTMLElement, text: string) => void };
-
-const STRATEGIES: Strategy[] = [
-  { name: '1-全选+insertText', run: insertAllOnce },
-  { name: '2-合成paste', run: pasteOnce },
-  { name: '3-逐行+insertLineBreak', run: insertLineByLine },
-];
-
-/**
- * 临时诊断：定位「退格删不掉 / 提交后换行消失」到底卡在哪一步。
- * ⚠️ 定位完成后删除本函数与所有调用。
- */
-function diagFill(
-  el: HTMLElement,
-  strategy: string,
-  textOk: boolean,
-  clearedAccepted: boolean | null,
-  accepted: boolean | null
-): void {
-  console.debug('[x-copilot:fill]', strategy, {
-    文字对得上: textOk,
-    清空后按钮可用: clearedAccepted,
-    填入后按钮可用: accepted,
-    文本节点含裸换行: hasRawNewlineInTextNodes(el),
-    br数: el.querySelectorAll('br').length,
-    子元素: [...el.children].map((c) => c.tagName).join(','),
-    文本前60: JSON.stringify((el.textContent ?? '').slice(0, 60)),
-    片段: el.innerHTML.slice(0, 150),
-  });
+/** 复制到剪贴板（保证可行的兜底：真实粘贴必然被编辑器认账） */
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // 剪贴板 API 不可用（权限 / 非安全上下文）→ 退回旧的 execCommand 方案
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
 }
 
-export function fillReplyComposer(el: HTMLElement, text: string): boolean {
+export type FillOutcome =
+  /** 编辑器已认账（退格可删、换行能发出去） */
+  | { kind: 'filled'; strategy: string }
+  /** 文字写不进编辑器状态，已把文本放进剪贴板，等用户 Ctrl+V */
+  | { kind: 'copied' }
+  /** 连剪贴板也失败 */
+  | { kind: 'failed' };
+
+/**
+ * 把 text 写进 composer。返回结局，由调用方决定提示文案。
+ * 只有「编辑器认账」才算成功；否则退到剪贴板兜底，绝不假装成功。
+ */
+export async function fillReplyComposer(
+  el: HTMLElement,
+  text: string
+): Promise<FillOutcome> {
   const target = text.trim();
-  let textLandedButNotAccepted = false;
 
   for (const strategy of STRATEGIES) {
     clearComposer(el);
-    const clearedAccepted = editorAccepted();
+    // 清空后按钮应回到 disabled；若仍可用说明判据不可靠，本轮改为只看文字
+    const clearedAccepted = await waitAccepted(el, 400);
+
     try {
       strategy.run(el, target);
     } catch {
       /* 交给下一个策略 */
     }
-    const textOk = sameText(el, target);
-    const accepted = editorAccepted();
-    diagFill(el, strategy.name, textOk, clearedAccepted, accepted);
 
-    if (textOk && accepted !== false) return true;
-    if (textOk) textLandedButNotAccepted = true;
+    const accepted = await waitAccepted(el);
+    const textOk = sameText(el, target);
+    const newlineOk = newlinesAreReal(el, target);
+
+    // 清空后按钮就没禁用过 → 按钮状态无法区分，退回只看文字与换行
+    const reliable = clearedAccepted === false;
+    const passed = textOk && newlineOk && (reliable ? accepted === true : accepted !== false);
+
+    console.debug('[x-copilot:fill]', strategy.name, {
+      策略被认账: passed,
+      文字对得上: textOk,
+      换行是真的: newlineOk,
+      清空后按钮可用: clearedAccepted,
+      填入后按钮可用: accepted,
+      br数: el.querySelectorAll('br').length,
+      子元素: [...el.children].map((c) => c.tagName).join(','),
+      片段: el.innerHTML.slice(0, 150),
+    });
+
+    if (passed) return { kind: 'filled', strategy: strategy.name };
   }
 
-  // 三个策略都没被编辑器认账：文字至少进去了，但可能退格删不掉 / 提交丢换行
-  return textLandedButNotAccepted;
+  // 四个策略都没被编辑器认账 —— 不假装成功，改用剪贴板兜底
+  const copied = await copyToClipboard(target);
+  return copied ? { kind: 'copied' } : { kind: 'failed' };
 }
 
 /** 同一套写入策略，Phase 2 的主发帖框也用它（命名去掉 reply 限定） */

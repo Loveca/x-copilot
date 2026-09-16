@@ -28,8 +28,18 @@ export function findReplyComposer(): HTMLElement | null {
   const visible = boxes.filter(isVisible);
   if (visible.length === 0) return null;
 
+  // 弹窗优先：详情页点评论图标会弹出 Reply Modal，此时页面上同时存在
+  // 详情页底部的内联回复框和弹窗里的回复框，而 DOM 序在前的是内联那个。
+  // 用户正在看、正在输入的是弹窗 —— 必须填它。
+  const inDialog = visible.filter((el) => el.closest('[role="dialog"]'));
+
+  const labeledInDialog = inDialog.find(looksLikeReplyBox);
+  if (labeledInDialog) return labeledInDialog;
+
   const labeled = visible.find(looksLikeReplyBox);
-  return labeled ?? visible[0];
+  if (labeled) return labeled;
+
+  return inDialog[0] ?? visible[0];
 }
 
 /**
@@ -70,9 +80,21 @@ export function findPostComposer(): HTMLElement | null {
  * 这是「X 认账」的判据：只把文字塞进 DOM 不算成功，必须让 X 自己的状态更新
  * （Post 按钮从 disabled 变可用），说明编辑器确实接管了这段文本。
  * 返回 null 表示没找到按钮。
+ *
+ * ⚠️ 必须传 composer：详情页点评论图标会弹出 Reply Modal，此时页面上有**两个**
+ * 发帖按钮（详情页底部的内联框一个、弹窗里一个）。不限定作用域时
+ * `querySelectorAll` 按 DOM 序拿到的永远是**上层那个空框的禁用按钮**，
+ * 于是刚填好的弹窗会被判成「没被认账」→ 降级到更差的策略。
  */
-export function isPostButtonEnabled(): boolean | null {
-  const btn = [...document.querySelectorAll<HTMLElement>(X_SELECTORS.postButton)].find(isVisible);
-  if (!btn) return null;
-  return !btn.hasAttribute('disabled') && btn.getAttribute('aria-disabled') !== 'true';
+export function isPostButtonEnabled(composer?: HTMLElement | null): boolean | null {
+  const scope = composer?.closest('[role="dialog"]') ?? null;
+  const pools = scope
+    ? [scope.querySelectorAll<HTMLElement>(X_SELECTORS.postButton), document.querySelectorAll<HTMLElement>(X_SELECTORS.postButton)]
+    : [document.querySelectorAll<HTMLElement>(X_SELECTORS.postButton)];
+
+  for (const pool of pools) {
+    const btn = [...pool].find(isVisible);
+    if (btn) return !btn.hasAttribute('disabled') && btn.getAttribute('aria-disabled') !== 'true';
+  }
+  return null;
 }

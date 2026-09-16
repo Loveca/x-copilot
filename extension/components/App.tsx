@@ -421,36 +421,31 @@ export function App() {
   }, [generating]);
 
   /** M0 Spike（Phase 2）：验证主发帖框能否被找到并写入，且 X 认账（Post 按钮激活） */
-  const spikePostComposer = useCallback(() => {
+  const spikePostComposer = useCallback(async () => {
     const composer = findPostComposer();
     if (!composer) {
       setToast('Spike：未找到主发帖框');
       console.debug('[X Copilot] post composer spike: not found');
       return;
     }
-    const before = isPostButtonEnabled();
-    const filled = fillComposer(composer, POST_SPIKE_TEXT);
+    const before = isPostButtonEnabled(composer);
+    const outcome = await fillComposer(composer, POST_SPIKE_TEXT);
+    const after = isPostButtonEnabled(composer);
 
-    // X 需要一帧来刷新按钮状态
-    setTimeout(() => {
-      const after = isPostButtonEnabled();
-      console.debug('[X Copilot] post composer spike', {
-        testId: composer.getAttribute('data-testid'),
-        ariaLabel: composer.getAttribute('aria-label'),
-        filled,
-        postButtonBefore: before,
-        postButtonAfter: after,
-      });
-      setToast(
-        filled
-          ? after === true
-            ? 'Spike：已填入，Post 按钮已激活'
-            : after === false
-              ? 'Spike：文字进去了，但 Post 按钮仍禁用'
-              : 'Spike：已填入（未找到 Post 按钮）'
+    console.debug('[X Copilot] post composer spike', {
+      testId: composer.getAttribute('data-testid'),
+      ariaLabel: composer.getAttribute('aria-label'),
+      outcome,
+      postButtonBefore: before,
+      postButtonAfter: after,
+    });
+    setToast(
+      outcome.kind === 'filled'
+        ? `Spike：已填入（${outcome.strategy}），Post 按钮${after === true ? '已激活' : after === false ? '仍禁用' : '未找到'}`
+        : outcome.kind === 'copied'
+          ? 'Spike：编辑器不认账，已复制到剪贴板，按 Ctrl+V 试试'
           : 'Spike：填入失败'
-      );
-    }, 300);
+    );
   }, []);
 
   /** 切换模式：清掉上一模式的结果，避免回复候选与发帖草稿混在一起 */
@@ -632,14 +627,16 @@ export function App() {
         );
         return;
       }
-      const ok =
+      const outcome =
         mode === 'post'
-          ? fillComposer(composer, candidate.text)
-          : fillReplyComposer(composer, candidate.text);
-      if (ok) {
+          ? await fillComposer(composer, candidate.text)
+          : await fillReplyComposer(composer, candidate.text);
+      if (outcome.kind === 'filled') {
         setToast('已填入，请检查后自行发送。');
         // 替换语义：只标记最新填入的一条，上一条自动恢复
         setFilledId(candidate.id);
+      } else if (outcome.kind === 'copied') {
+        setToast('已复制到剪贴板，请在输入框里按 Ctrl+V 粘贴。');
       } else {
         setToast('填入失败，请手动复制粘贴。');
       }
