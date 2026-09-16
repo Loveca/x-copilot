@@ -54,3 +54,58 @@
 - `ef87262` 检测加固 + `[X Copilot]` console.debug 日志（排查靠它）
 - `32c0441` null 确认期（保留中）
 - `964cffd` 幂等保护（已回滚，待定位后带根因重新引入）
+
+---
+
+## [BUG] 发帖换行在提交后消失（未解决）
+
+**状态**：待解决。2026-09-16 暂停（用户决定先记 TODO）。三轮修复尝试均无效：`ef90ab9` → `de23254` → `c00aca9`。
+
+### 现象
+
+从候选卡片「填入」到 X 发帖框的多行文本：**面板里显示有换行、发帖框里也显示换行和空行，但帖子一发出去换行全没了，合并成一整段。**
+
+> 背景：2026-09-16 给发帖 prompt 加了「短句 + 空行」的排版规则，模型输出才第一次真正带换行，于是暴露了这个问题。之前的输出都是单段，所以一直没发现。
+
+### 已排除（关键证据，别再重复验证）
+
+- **不是 X 的锅**：人工在记事本里打多行文本 → 在 X 发帖框 **Ctrl+V 粘贴** → 发出去**空行还在**。说明 X 保留「粘贴进去的内容」的换行。
+- **不是面板的锅**：面板候选用 `white-space: pre-wrap`，显示一直正常。
+- ⇒ 问题只可能出在**我们怎么把文字写进 composer**（`lib/content/x/fill.ts`）。
+
+### 已尝试（均无效）
+
+1. 校验放宽（严格等值 → 忽略空白差异）
+2. 逐行插入 + `execCommand('insertLineBreak')`（插不进退回合成回车 keydown）
+3. 去掉"假换行"判定门槛（`hasRawNewlineInTextNodes`），改为"paste 成功即返回，绝不再清空重填"
+4. 构造 `ClipboardEvent` 后强制 `Object.defineProperty` 挂上 `clipboardData`
+
+### 规范依据（已查证，别再重查）
+
+- **Clipboard API（W3C）**：*Synthetic clipboard events will not actually modify the clipboard or the document.* —— **合成 paste 事件浏览器不会真的粘贴**，只是"通知页面"；数据必须由页面自己的 paste handler 消费。
+- **MDN**：`clipboardData` **用构造函数创建事件时可能是 `null`**（浏览器自己派发时才保证非 null）。为 null → 页面 handler 读不到 → 空操作。
+- **外部实证**：StackOverflow [`New line in a X post`](https://stackoverflow.com/questions/79666573/new-line-in-a-x-post) —— 同一个问题。提问者试过 `\r\n`、合成回车、`execCommand('insertText')` **全失败**；唯一能同时做到「显示有换行 + 发出去仍有换行」的只有**合成 paste 事件 + `text/plain`**。
+
+### 关键疑点（按可能性排序）
+
+- **H1（最可疑）：content script 跑在 isolated world，合成的事件与 `DataTransfer` 跨世界，X 的 paste handler 可能拿不到数据** → paste 空操作 → 掉到 `insertText` 兜底 → 产出"假换行"。
+  - **验证方式**：把填写的注入改成 **MAIN world** 再试（WXT content script 支持 `world: 'MAIN'`；manifest 里是 `"world": "MAIN"`）。
+- **H2**：X/Lexical 的 paste handler 对合成事件另有条件（`isTrusted` 之类），直接忽略。
+- **H3**：写进去的确是"假换行"——`\n` 躺在文本节点里，靠 CSS `pre-wrap` 渲染；X 提交时按自己的节点模型序列化，把这些 `\n` 丢掉。
+
+### 下一步
+
+1. **先拿诊断数据**：`fill.ts` 里已留临时诊断 `diagFill()`，填入时会在 Console 打印
+   `[x-copilot:fill] 1-paste | 2-paste-retry | 3-insertText { 裸换行, br数, 子元素, 文本前60, 片段 }`
+   - 看到 `1-paste` → 首选路径成功，问题在提交阶段（→ H3 / 转"占位字符"方案）
+   - 只看到 `3-insertText` → paste 没落进去（→ H1/H2，改 MAIN world）
+2. 若确认 paste 空操作 → 试 **MAIN world 注入**（H1）。
+3. 若 paste 成功但提交仍丢 → 转"占位字符"方案：空行用一个不可见字符（如 U+2800 Braille Pattern Blank）占位，社区通行做法；或改用双换行。
+4. **修好后删掉 `diagFill()` 及其三个调用点。**
+
+### 相关提交
+
+- `ef90ab9` 第一版（引入 `hasRawNewlineInTextNodes` 门槛 —— 后被证明是错的设计，会误杀正确结果）
+- `de23254` 去掉门槛 + 确立铁律「paste 成功即返回、绝不再清空重填」
+- `c00aca9` 强制挂 `clipboardData` + 加临时诊断 `diagFill()`
+
