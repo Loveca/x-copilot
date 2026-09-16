@@ -1,38 +1,28 @@
 /**
  * 把文本写进 X 的 composer（回复框 / 主发帖框，替换语义）。
  *
- * X 的 composer 是 contenteditable + Lexical 编辑器。这里有两个坑：
+ * ⚠️ 这里的写入方式是被外部实践反复验证过的，别随便换：
+ *   X 的 composer 是 contenteditable + Lexical 编辑器。往里面写文字有两条路，
+ *   但只有第一条能同时满足「面板/composer 里显示有换行」**和**「发出去仍然有换行」：
  *
- * ① 「假换行」：只把 `\n` 塞进文本节点是不行的。CSS `white-space: pre-wrap` 会把文本节点里的
- *    裸 `\n` 渲染成换行，**看着完全正常**，但那不是编辑器认可的换行节点 —— X 提交时按自己的
- *    节点模型序列化，裸 `\n` 被丢掉。用户看到的现象就是：
- *    「面板里有换行、composer 里也有换行，一发出去变成一整段」。
- *    必须让编辑器建出**真正的换行节点**（<br> / LineBreakNode），也就是"真按了回车"。
+ *   ✅ 合成 paste 事件（DataTransfer 里放 text/plain）
+ *      —— 走编辑器自己的粘贴处理，换行会变成编辑器认可的换行节点，提交后保留。
+ *   ❌ execCommand('insertText') / 直接改 DOM / 合成回车
+ *      —— 文字进得去，CSS `white-space: pre-wrap` 也会把 `\n` 渲染成换行，**看着完全正常**，
+ *         但那不是编辑器认的换行节点：提交时被丢掉。现象就是
+ *         「面板里有换行、composer 里也有换行，一发出去变成一整段」。
  *
- * ② 校验不能拿 textContent 跟原文严格比对：真换行节点的 textContent 里**没有** `\n`
- *    （<br> 不产生字符），严格比对会误判成"没填进去"→ 把已填好的内容清掉重来 →
- *    最后反而留下裸 `\n` 版本。**这正是之前换行丢失的根因。**
- *
- * 策略（逐级降级，每级都验证「文字对得上 + 没有裸 \n」）：
- *   1. 合成 paste —— 走编辑器的粘贴处理，它会按行拆成真正的换行节点
- *   2. 逐行插入 + insertLineBreak —— 直接让编辑器插入它自己的换行节点
- *   3. 兜底：整体 insertText
+ * ⚠️ 因此铁律：**只要 paste 成功（文字已进入），就绝不能再清空重填。**
+ *    早期版本在 paste 之后用严格等值校验判"失败"，把已填好的内容清掉、重塞 insertText 版本，
+ *    等于亲手把正确结果换成错的 —— 这才是换行在提交时消失的真凶。
  *
  * ⚠️ 只填入，绝不点击 Reply / Send / Post。
  */
 
-/** 文本节点里是否残留裸 \n（= 假换行，提交时会被 X 吞掉） */
-function hasRawNewlineInTextNodes(el: HTMLElement): boolean {
-  const walk = (node: Node): boolean => {
-    if (node.nodeType === Node.TEXT_NODE) return (node.nodeValue ?? '').includes('\n');
-    return Array.from(node.childNodes).some(walk);
-  };
-  return walk(el);
-}
-
 /**
  * 内容是否已写入。忽略空白差异：
- * 真换行节点的 textContent 不含 \n，各行文字会直接连在一起。
+ * 真换行节点的 textContent 里**没有** `\n`（<br> 不产生字符），
+ * 用严格等值比较会把「已经填好」误判成「没填进去」。
  */
 function sameText(el: HTMLElement, expected: string): boolean {
   const squash = (s: string) => s.replace(/[\s\u200b]+/g, '');
@@ -49,6 +39,7 @@ function clearComposer(el: HTMLElement): void {
   }
 }
 
+/** 合成 paste —— 唯一能让换行在提交后依然存在的方式 */
 function pasteText(el: HTMLElement, text: string): void {
   try {
     const dt = new DataTransfer();
@@ -60,68 +51,26 @@ function pasteText(el: HTMLElement, text: string): void {
     });
     el.dispatchEvent(ev);
   } catch {
-    /* 交给下一级策略 */
+    /* 交给调用方兜底 */
   }
-}
-
-/** 派发回车键，让编辑器把它当作"用户按了回车"，从而建出真正的换行节点 */
-function pressEnter(el: HTMLElement): void {
-  const init = {
-    key: 'Enter',
-    code: 'Enter',
-    keyCode: 13,
-    which: 13,
-    bubbles: true,
-    cancelable: true,
-  };
-  el.dispatchEvent(new KeyboardEvent('keydown', init));
-  el.dispatchEvent(new KeyboardEvent('keyup', init));
-}
-
-/** 逐行写入，行间用 insertLineBreak（编辑器原生换行节点），插不进就退回合成回车 */
-function insertLineByLine(el: HTMLElement, text: string): void {
-  const lines = text.split('\n');
-  el.focus();
-  for (let i = 0; i < lines.length; i++) {
-    if (i > 0) {
-      let broke = false;
-      try {
-        broke = document.execCommand('insertLineBreak');
-      } catch {
-        broke = false;
-      }
-      if (!broke) pressEnter(el);
-    }
-    if (!lines[i]) continue;
-    try {
-      document.execCommand('insertText', false, lines[i]);
-    } catch {
-      /* 继续，最后由校验兜底 */
-    }
-  }
-}
-
-/** 填入是否可信：文字对得上，且（原文含换行时）没有留下裸 \n */
-function isGoodFill(el: HTMLElement, expected: string): boolean {
-  if (!sameText(el, expected)) return false;
-  if (!expected.includes('\n')) return true;
-  return !hasRawNewlineInTextNodes(el);
 }
 
 export function fillReplyComposer(el: HTMLElement, text: string): boolean {
   const target = text.trim();
 
-  // 1) 合成 paste（首选：走编辑器粘贴处理，一次插入、状态同步）
+  // 1) 合成 paste（首选，也是唯一能保住换行的方式）
   clearComposer(el);
   pasteText(el, target);
-  if (isGoodFill(el, target)) return true;
+  if (sameText(el, target)) return true;
 
-  // 2) paste 没能建出真换行 → 逐行插入 + 原生换行
+  // 2) 再试一次（编辑器偶尔要等焦点稳定后才吃 paste；先清空，避免半截内容叠加）
   clearComposer(el);
-  insertLineByLine(el, target);
-  if (isGoodFill(el, target)) return true;
+  el.focus();
+  pasteText(el, target);
+  if (sameText(el, target)) return true;
 
-  // 3) 兜底：整体 insertText（换行可能仍是假的，但没有更好的办法）
+  // 3) 最后手段：整段 insertText。
+  //    ⚠️ 这条路填出来的换行**可能在提交时被吞**，但总比什么都没填强。
   clearComposer(el);
   try {
     document.execCommand('insertText', false, target);
