@@ -1,3 +1,5 @@
+<img src="assets/logo.png" alt="X Copilot" width="120">
+
 # X Copilot
 
 > X（Twitter）的浏览器扩展 AI Copilot。**Copilot, not bot** —— 只建议、只填入，绝不自动发送。
