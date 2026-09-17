@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>X（Twitter）的浏览器扩展 AI Copilot</b><br>
-  回复生成 · 发帖草稿 · 多模型 · 流式输出 · 只填入不发送
+  回复生成 · 帖子生成 · 多模型自选 · 开源免费 · 只填入不发送
 </p>
 
 <p align="center">
@@ -21,21 +21,19 @@
 
 ## 项目简介
 
-X Copilot 是一个 X（Twitter）浏览辅助扩展：识别你正在看的帖子，用你自己配置的模型生成多条不同风格的**回复**或**发帖**草稿，点一下写进输入框 —— 检查与发送始终由你完成。
+X Copilot 是一个 X（Twitter）浏览辅助扩展：识别你正在看的帖子，用你自己配置的模型生成多条不同风格的**回复**或**帖子**，点一下写进输入框 —— 检查与发送始终由你完成。
 
 ### 本项目做什么
 
 - **回复生成** — 识别当前帖子，一次给出多条不同风格的回复候选，点「填入」写进 X 的回复框
-- **发帖草稿** — 从「随便聊聊 / Feed热帖 / 热点」挑一个出发点，产出多条不同风格的帖子草稿
-- **模型自选** — DeepSeek / Google Gemini / 任意 OpenAI 兼容服务，API Key 只存本机
+- **帖子生成** — 从「随便聊聊 / Feed热帖 / 热点」挑一个出发点，产出多条不同风格的帖子
+- **模型自选** — DeepSeek / Google Gemini / 任意 OpenAI 兼容服务；API Key 你自备、只存本机，没有中间服务器，也没有订阅费
 
 ### 本项目不做什么
 
 - **不自动发送** — 任何情况下都不点 Reply / Send / Post；填入之后改不改、发不发都由你决定
 - **不碰你的账号** — 不读取登录 Cookie，不做点赞 / 关注 / 取关等任何写操作
 - **不多传数据** — 只把当前这条帖子的文本（和最多 4 张配图）发给**你自己配置的**模型服务
-
-📖 详细设计见 [`docs/`](docs/) —— [产品规格](docs/PROJECT.md) · [架构](docs/ARCHITECTURE.md) · [回复模块](docs/REPLY_MODULE.md) · [发帖模块](docs/POST_MODULE.md) · [清理模块](docs/CLEAN_MODULE.md)
 
 ## 核心能力
 
@@ -51,36 +49,28 @@ X Copilot 是一个 X（Twitter）浏览辅助扩展：识别你正在看的帖�
 
 - **三个灵感入口** — 随便聊聊（自动产出 3 条话题）· Feed热帖（扫当前页面互动最高的帖子）· 热点（读 X 右侧栏趋势），点一条填进输入框当引子
 - **独立风格库** — 观点 · 反直觉 · 提问互动 · 自嘲 · 废话体，与回复风格完全独立、各自配置
-- **多行排版** — 草稿支持「短句 + 空行」的中文区排版
+- **多行排版** — 支持「短句 + 空行」的中文区排版
 
 ### 模型与体验
 
 - **服务商可切换** — DeepSeek 官方 / Google Gemini（有免费额度）/ 自定义 OpenAI 兼容服务
-- **悬浮球** — 可拖动、位置自动记忆；尺寸与样式对齐 X 自己的悬浮按钮
-- **开发者视图** — 面板底部显示首字节 / 出字 / 首条 / 完成耗时，排查速度问题用（默认关）
-
-## 架构总览
-
-```mermaid
-flowchart LR
-    P["X 页面<br/>content script"] --> D["识别当前帖子"]
-    D --> UI["Shadow DOM 面板<br/>React"]
-    UI -->|"runtime.connect · 流式"| BG["Background SW<br/>无状态请求代理"]
-    BG -->|"fetch"| LLM["模型服务<br/>DeepSeek / Gemini / 自定义"]
-    UI --> F["写入输入框<br/>只填入 · 不发送"]
-```
-
-LLM 请求只从 background service worker 发出，content script 只负责取页面数据与写回输入框。
+- **悬浮按钮** — 可拖动、位置自动记忆；尺寸与样式对齐 X 自己的浮动按钮
 
 ## 快速开始
 
-### 环境要求
+需要 Chrome 或 Edge（Manifest V3）。
 
-- Node.js ≥ 18
-- Chrome / Edge（Manifest V3）
-- 一个模型服务商的 API Key
+### 方式一：下载即用（推荐）
 
-### 安装与加载
+1. 到 [Releases](https://github.com/Loveca/x-copilot/releases) 下载最新的 `x-copilot-chrome-mv3.zip`，解压到本地任意文件夹
+2. 打开 `chrome://extensions/` → 开启右上角**开发者模式** → **加载已解压的扩展程序** → 选择刚解压出的文件夹
+3. 打开 x.com，页面右侧出现 ✦ 悬浮按钮即安装成功
+
+> 本扩展未经应用商店签名，因此需以「已解压」方式加载；Chrome 对开发者模式扩展的提示属正常现象。
+
+### 方式二：从源码构建（开发者）
+
+需要 Node.js ≥ 18：
 
 ```bash
 git clone https://github.com/Loveca/x-copilot.git
@@ -89,38 +79,14 @@ npm install
 npm run build          # 产物在 .output/chrome-mv3/
 ```
 
-打开 `chrome://extensions/` → 开启右上角**开发者模式** → **加载已解压的扩展程序** → 选择 `extension/.output/chrome-mv3/`。
-
-打开 x.com，页面右侧出现 ✦ 悬浮球即可。
+然后按方式一的第 2 步加载 `extension/.output/chrome-mv3/`。
 
 ### 首次配置
 
-1. 点 ✦ 悬浮球 → 面板左下角**设置**
+1. 点 ✦ 悬浮按钮 → 面板左下角**设置**
 2. 在「模型配置」里选**服务商**，填入 **API Key** 并保存
 
 Key 在 [DeepSeek 开放平台](https://platform.deepseek.com/)（`sk-...`）或 [Google AI Studio](https://aistudio.google.com/apikey)（`AIza...`）获取，只存本机 `chrome.storage.local`。
-
-### 开发
-
-```bash
-npm run dev            # WXT 开发模式，改代码自动重载
-npm run compile        # 类型检查
-npm run zip            # 打包成可上传商店的 zip
-```
-
-```
-extension/
-├── entrypoints/       # background service worker、content script 入口
-├── components/        # 注入 Shadow DOM 的 React UI（悬浮球 / 面板 / 候选卡）
-├── lib/llm/           # 服务商适配、流式解析、提示词模板渲染
-├── lib/content/x/     # X 页面侧：帖子识别、写入输入框、内容清理
-├── prompts/           # 提示词模板（Markdown，构建期内联）
-└── public/            # 设置页（静态 HTML + JS，不走构建）
-```
-
-提示词不硬编码在代码里：直接改 `extension/prompts/*.md` 即可，支持 `{{变量}}` 与 `{{#if}}`，构建期由 Vite 的 `?raw` 内联成常量。
-
-改完 `.ts` / `.md` 后需要重新构建，并在 `chrome://extensions` 点一次**重新加载**、**刷新 x.com 标签页**，新的 content script 才会生效。
 
 ## 配置
 
@@ -142,6 +108,13 @@ extension/
 - **不自动发送 / 点赞 / 关注**，不做任何批量账号操作
 - API Key 只存本机，请求只从 background service worker 发出
 - 发送给模型服务的只有当前帖子的文本与（最多 4 张）配图，不经过其他服务器，也不会被插件持久化保存
+- 代码以 MIT 开源，可自行审计
+
+## 开发者
+
+想改代码或参与贡献，见 [CONTRIBUTING.md](docs/CONTRIBUTING.md)。
+
+设计文档：[产品规格](docs/PROJECT.md) · [架构](docs/ARCHITECTURE.md) · [回复模块](docs/REPLY_MODULE.md) · [发帖模块](docs/POST_MODULE.md) · [清理模块](docs/CLEAN_MODULE.md)
 
 ## 许可
 
