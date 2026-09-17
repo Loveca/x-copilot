@@ -35,7 +35,7 @@ X Copilot 是一个 X（Twitter）浏览辅助扩展：识别你正在看的帖�
 - **不碰你的账号** — 不读取登录 Cookie，不做点赞 / 关注 / 取关等任何写操作
 - **不多传数据** — 只把当前这条帖子的文本（和最多 4 张配图）发给**你自己配置的**模型服务
 
-📖 详细设计见 [`docs/`](docs/) —— [架构](docs/ARCHITECTURE.md) · [回复模块](docs/REPLY_MODULE.md) · [发帖模块](docs/POST_MODULE.md) · [待办](docs/TODO.md)
+📖 详细设计见 [`docs/`](docs/) —— [架构](docs/ARCHITECTURE.md) · [回复模块](docs/REPLY_MODULE.md) · [发帖模块](docs/POST_MODULE.md)
 
 ## 核心能力
 

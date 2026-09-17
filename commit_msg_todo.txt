@@ -1,0 +1,8 @@
+chore(docs): 将内部战报 docs/TODO.md 移出公开树
+
+- git rm docs/TODO.md（停止跟踪，不重写历史、不 force）
+- 战报完整留存于 .workbuddy/todo.md（已被 .gitignore 覆盖，不进 GitHub）
+- README 第 38 行去掉「待办」外链
+- REPLY_MODULE.md 修掉两处悬空的 TODO.md 引用
+
+目标：保证后续提交不再携带内部排错战报；历史中既有副本为既定成本，不处理。
