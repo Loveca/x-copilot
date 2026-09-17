@@ -82,10 +82,16 @@ async function lineByLineReplace(el: HTMLElement, text: string): Promise<void> {
   }
 }
 
-const STRATEGIES: { name: string; run: (el: HTMLElement, text: string) => Promise<void> }[] = [
+// 有换行 → paste 优先（DraftJS 的 handlePastedText 才能把 \n 正确转成编辑器换行节点）
+// 无换行 → insertText 优先（不需要合成事件，更简单可靠）
+const STRATEGIES_MULTILINE: { name: string; run: (el: HTMLElement, text: string) => Promise<void> }[] = [
   { name: '1-paste替换', run: pasteReplace },
   { name: '2-insertText替换', run: insertTextReplace },
   { name: '3-逐行替换', run: lineByLineReplace },
+];
+const STRATEGIES_SINGLELINE: { name: string; run: (el: HTMLElement, text: string) => Promise<void> }[] = [
+  { name: '1-insertText替换', run: insertTextReplace },
+  { name: '2-paste替换', run: pasteReplace },
 ];
 
 // ─── 验收 ────────────────────────────────────────────────────────────────────
@@ -165,11 +171,12 @@ export async function fillReplyComposer(
   text: string
 ): Promise<FillOutcome> {
   const target = text.trim();
+  const strategies = target.includes('\n') ? STRATEGIES_MULTILINE : STRATEGIES_SINGLELINE;
 
   // 记录写入前的按钮状态，用于判断验收是否可靠
   const beforeEnabled = isPostButtonEnabled(el);
 
-  for (const strategy of STRATEGIES) {
+  for (const strategy of strategies) {
     try {
       await strategy.run(el, target);
     } catch { /* 交给下一个策略 */ }
