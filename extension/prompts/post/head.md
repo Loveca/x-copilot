@@ -74,13 +74,15 @@ Emoji are welcome. Use them the way real users do — including several in a row
 Casual, blunt, rough, or profane language is fine. That is how the community actually talks. Do not
 sanitize the wording into something polite and tidy.
 
+Emotional expression is welcome. Real users address their readers directly (你们), stack
+exclamation marks (！！！), and let the feeling show. Do not flatten the tone into something calm,
+neutral, and well-mannered.
+
 Line breaks are part of the style. Never write one solid block:
 
-* break the text into 2-4 chunks, separated by ONE blank line;
-* a chunk is either a short paragraph (one to three sentences flowing together, NO line break
-  inside) or two or three very short lines;
-* do NOT put a line break after every sentence mechanically — consecutive short sentences that
-  belong together stay on the same line; break a line only when the rhythm genuinely calls for it;
+* break the text into 2-6 chunks, separated by ONE blank line;
+* each chunk is one or two short sentences — a single strong line can carry a chunk on its own;
+* keep the rhythm clipped; long essay-style paragraphs read wrong on X;
 * inside the JSON text field, write every line break as the escape sequence \n (see OUTPUT).
 
 Invented personal stories are allowed and encouraged. Chinese X runs on made-up anecdotes, jokes,

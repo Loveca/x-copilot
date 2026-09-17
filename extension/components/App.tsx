@@ -61,6 +61,8 @@ type IdeaTab = 'idea' | 'hot' | 'trend';
  */
 type PickedSource = {
   kind: 'quick' | 'hot' | 'trend';
+  /** 「随便聊聊」点选的话题方向（顶级认知 / 冷知识 / 扎心真相），生成时显式传给模型 */
+  direction?: string;
   handle?: string;
   text?: string;
   engagement?: string;
@@ -276,6 +278,8 @@ export function App() {
         options.contextTweets = collectTimelineTweets(5);
         const pick = pickedSourceRef.current;
         options.sourceKind = pick.kind;
+        // 点选过「随便聊聊」的话题：把方向显式传给模型，防止 5 条候选混方向
+        if (pick.kind === 'quick' && pick.direction) options.ideaDirection = pick.direction;
         if (pick.kind === 'hot') {
           options.inspiration = {
             handle: pick.handle,
@@ -514,7 +518,7 @@ export function App() {
 
   /** 点随便聊聊里的一条 → 填进面板输入框（列表保持不动，可反复点其他两条覆盖） */
   const useIdea = useCallback((item: ReplyCandidate) => {
-    pickedSourceRef.current = { kind: 'quick' };
+    pickedSourceRef.current = { kind: 'quick', direction: item.style };
     setIntent(item.text);
     setFilledIdeaId(item.id);
   }, []);

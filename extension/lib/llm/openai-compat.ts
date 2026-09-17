@@ -68,6 +68,8 @@ function buildPrompt(
  */
 type PostSource = {
   kind: PostSourceKind;
+  /** 点选「随便聊聊」话题的方向（顶级认知 / 冷知识 / 扎心真相）；自由输入时为空 */
+  ideaDirection?: string;
   handle?: string;
   text?: string;
   engagement?: string;
@@ -99,6 +101,7 @@ function buildPostPrompt(
   return renderPostPrompt(source.kind, {
     user_intent: intent?.trim() ?? '',
     source_type: POST_SOURCE_LABEL[source.kind],
+    idea_direction: source.ideaDirection ?? '',
     inspiration_author: source.handle ?? '',
     inspiration_handle: source.handle ?? '',
     inspiration_text: source.text ?? '',
@@ -113,9 +116,9 @@ function buildPostPrompt(
 }
 
 /**
- * 「随手发」（水贴三件套）固定的三类。
- * 只在 idea 模式内部用于校验兜底与候选分组，不进设置页、不参与 postStyles 配置，
- * 因此用户把所有发帖风格都禁用也不影响随手发。
+ * 「随便聊聊」话题抽取（idea 模式）固定的三类。
+ * 只在灵感链路内部用于校验兜底与候选分组，不进设置页、不参与 postStyles 配置；
+ * 生成帖子（含随便聊聊点选后）走用户配置的 postStyles —— 两轴分离，互不替代。
  */
 const IDEA_STYLES: StyleConfig[] = [
   { key: 'idea-insight', label: '顶级认知', desc: '反直觉但站得住的判断', enabled: true, count: 1 },
@@ -386,7 +389,7 @@ function resolveGeneration(options?: GenerateOptions): {
   const mode: 'reply' | 'post' = options?.mode === 'post' ? 'post' : 'reply';
   const ideaMode = options?.source === 'idea';
   const fallback = mode === 'post' ? DEFAULT_POST_STYLES : DEFAULT_STYLES;
-  // 随手发的三类是内置的：不受「用户把所有发帖风格都禁用了」影响
+  // 两轴分离：灵感抽取（idea 模式）用内置三类；生成帖子一律走用户配置的 postStyles
   const styles = ideaMode
     ? IDEA_STYLES
     : (options?.styles?.length ? options.styles : fallback).filter(
@@ -434,6 +437,8 @@ export class OpenAICompatProvider implements LLMProvider {
   private ideaMode = false;
   /** 发帖灵感来源种类（决定拼装哪一个来源片段） */
   private sourceKind: PostSourceKind = 'quick';
+  /** 点选「随便聊聊」话题的方向（显式锚定，避免模型把候选混到别的方向） */
+  private ideaDirection: string | undefined;
   /** 选中的 Feed 热帖（sourceKind = 'hot' 时） */
   private inspiration: PostInspiration | undefined;
   /** 选中的热点（sourceKind = 'trend' 时） */
@@ -467,6 +472,7 @@ export class OpenAICompatProvider implements LLMProvider {
       : this.mode === 'post'
         ? buildPostPrompt(styles, intent, this.contextTweets, {
             kind: this.sourceKind,
+            ideaDirection: this.ideaDirection,
             handle: this.inspiration?.handle,
             text: this.inspiration?.text,
             engagement: this.inspiration?.engagement,
@@ -474,6 +480,12 @@ export class OpenAICompatProvider implements LLMProvider {
             trendContent: this.trend?.content,
           })
         : buildPrompt(context as TweetContext, styles, intent, images.length > 0);
+
+    // 调试：把真正发出去的提示词打到 Service Worker 控制台（chrome://extensions → 检查视图）
+    console.log(
+      `[X Copilot] prompt → mode=${this.mode}${this.ideaMode ? ' idea' : ''} source=${this.sourceKind} ${prompt.length} chars\n\n${prompt}`
+    );
+
     // 多模态消息：文字 + image_url 内容块（图片只能出现在 user 消息里，这是各家的共同约束）
     const content =
       images.length > 0
@@ -579,6 +591,7 @@ export class OpenAICompatProvider implements LLMProvider {
     this.ideaMode = ideaMode;
     this.contextTweets = contextTweets;
     this.sourceKind = options?.sourceKind ?? 'quick';
+    this.ideaDirection = options?.ideaDirection;
     this.inspiration = options?.inspiration;
     this.trend = options?.trend;
     const imageDataUrls = (options?.imageDataUrls ?? []).slice(0, MAX_VISION_IMAGES);
@@ -766,6 +779,7 @@ export class OpenAICompatProvider implements LLMProvider {
     this.ideaMode = ideaMode;
     this.contextTweets = contextTweets;
     this.sourceKind = options?.sourceKind ?? 'quick';
+    this.ideaDirection = options?.ideaDirection;
     this.inspiration = options?.inspiration;
     this.trend = options?.trend;
     const imageDataUrls = (options?.imageDataUrls ?? []).slice(0, MAX_VISION_IMAGES);

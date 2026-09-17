@@ -65,6 +65,11 @@ export interface GenerateOptions {
   /** 选中的热点（sourceKind = 'trend' 时） */
   trend?: PostTrend;
   /**
+   * 点选「随便聊聊」话题后，该话题所属的方向（顶级认知 / 冷知识 / 扎心真相）。
+   * 显式传给模型锚定方向，避免 5 条候选混方向。
+   */
+  ideaDirection?: string;
+  /**
    * 灵感区「随便聊聊」：产出 3 条话题（顶级认知 / 冷知识 / 扎心真相），
    * 不走 postStyles，也不带任何页面语境。
    */
