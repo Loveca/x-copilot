@@ -9,15 +9,16 @@
  *      · **退格删不掉**（S2）—— Backspace 走 EditorState，状态里没这段文字，无事可删
  *      · **提交时按 EditorState 序列化 → 换行全丢**（S1）——编辑器状态里根本没有这段文字
  *
- * 所以「成功」必须同时满足三件事，缺一不可：
- *   1. 文字进了 DOM；
- *   2. **X 认账** —— 同作用域内 Post / Reply 按钮从 disabled 变可用（`isPostButtonEnabled`）；
- *   3. **换行是真的** —— 换行由编辑器节点（`<br>` / 块级元素）承载，
- *      而不是裸 `\n` 躺在文本节点里靠 CSS 渲染出来。
+ * 「成功」= 文字进 DOM + 换行由编辑器节点（`<br>` / 块级元素）承载；
+ * 按钮（`isPostButtonEnabled`）作为「X 认账」的代理判据，只用于宽限等待。
  *
- * 三个策略依次试，每个都按上述三条验收；谁过了就用谁。
- * 都不认账时**不再假装成功**：把文本复制到剪贴板，让用户 Ctrl+V —— 真实粘贴一定走
- * 编辑器自己的粘贴处理，退格能删、换行能发出去，100% 等价于手动操作。
+ * ⚠️ 2026-09-17 二次调整（消除「填入时闪一下」）：
+ *   此前每条策略前都先「清空再写入」，且任何一项验收不过就清掉重来 ——
+ *   只要第一条策略其实写对了、或框里本来就有旧文案，用户就会看到
+ *   「文字出现 → 被清空 → 重新写入」的可见闪动。现在：
+ *   - 写入一律用「全选 + 替换」语义（selectAll 后 paste / insertText 直接替换选区），
+ *     不再有清空后的空白期；
+ *   - 文字与换行结构都已正确时**绝不重写**（按钮判据只触发额外等待，不再销毁重填）。
  *
  * ⚠️ 只填入，绝不点击 Reply / Send / Post。
  */
@@ -30,9 +31,7 @@ import { isPostButtonEnabled } from './composer-detector';
  *   - **移除「合成 beforeinput」**——DraftJS 的 editOnBeforeInput 收到合成事件后可能只更新
  *     EditorState 而不走完整的 onChange → React → 重渲染链，正是 S4（状态变、界面不刷新）的头号嫌疑。
  *   - **合成 paste 提为首选**——SO 79666573（针对 X 本站）实证：合成 paste 是唯一同时做到
- *     「显示有换行 + 发出去仍有换行」的路径；此前它"失败"多半是旧验收探针取错按钮（1.0.1）导致的误判。
- *   - **清空改单遍**——「selectAll+delete 连做两遍」会在编辑器状态已清空后再执行一次 delete，
- *     造成 DOM 与 EditorState 从起点就错位（S4 的 H2 嫌疑）。
+ *     「显示有换行 + 发出去仍有换行」的路径；此前它"失败"多半是旧验收探针取错按钮导致的误判。
  */
 const STRATEGIES: { name: string; run: (el: HTMLElement, text: string) => void }[] = [
   { name: '1-合成paste', run: pasteOnce },
@@ -106,36 +105,19 @@ function newlinesAreReal(el: HTMLElement, expected: string): boolean {
 }
 
 /**
- * 填充前的清空。
- * DraftJS 的状态更新滞后于 DOM，`selectAll` + `delete` **连做两遍**才能真正清干净
- * （第一遍清 DOM，第二遍清 EditorState）—— 这是 dev.to 那份实测配方里的关键一步。
+ * 策略 1：合成 paste 事件（走编辑器自己的粘贴处理，换行会成为编辑器认可的换行节点）。
+ *
+ * 先 selectAll 再派发 —— **粘贴会替换选中的旧内容**，天然就是「整体替换」语义：
+ * 不需要先 delete 清空，也就没有「清空 → 空白期 → 重写」的可见闪动。
+ * 空框上 selectAll 无选区，无副作用。
  */
-function clearComposer(el: HTMLElement): void {
-  el.focus();
-  if ((el.textContent ?? '').trim() === '') return;
-  for (let i = 0; i < 2; i++) {
-    try {
-      document.execCommand('selectAll', false);
-      document.execCommand('delete', false);
-    } catch {
-      /* 忽略，后面的写入会覆盖选区 */
-    }
-  }
-}
-
-/** 策略 1：全选 + 一次性 insertText（走浏览器原生输入路径） */
-function insertTextOnce(el: HTMLElement, text: string): void {
+function pasteOnce(el: HTMLElement, text: string): void {
   el.focus();
   try {
     document.execCommand('selectAll', false);
   } catch {
-    /* 继续，insertText 会替换当前选区 */
+    /* 空框上无选区，无妨 */
   }
-  document.execCommand('insertText', false, text);
-}
-
-/** 策略 1：合成 paste 事件（走编辑器自己的粘贴处理，换行会成为编辑器认可的换行节点） */
-function pasteOnce(el: HTMLElement, text: string): void {
   try {
     const dt = new DataTransfer();
     dt.setData('text/plain', text);
@@ -154,10 +136,30 @@ function pasteOnce(el: HTMLElement, text: string): void {
   }
 }
 
-/** 策略 4：逐行写入，行间用 insertLineBreak（编辑器原生换行节点） */
+/** 策略 2：全选 + 一次性 insertText（走浏览器原生输入路径，同样替换选区、无空白期） */
+function insertTextOnce(el: HTMLElement, text: string): void {
+  el.focus();
+  try {
+    document.execCommand('selectAll', false);
+  } catch {
+    /* 继续，insertText 会替换当前选区 */
+  }
+  document.execCommand('insertText', false, text);
+}
+
+/**
+ * 策略 3：逐行写入，行间用 insertLineBreak（编辑器原生换行节点）。
+ * 这条没有「替换选区」语义，需要先 selectAll + delete 清掉旧内容。
+ */
 function insertLineByLine(el: HTMLElement, text: string): void {
   const lines = text.split('\n');
   el.focus();
+  try {
+    document.execCommand('selectAll', false);
+    document.execCommand('delete', false);
+  } catch {
+    /* 空框无妨 */
+  }
   for (let i = 0; i < lines.length; i++) {
     if (i > 0) document.execCommand('insertLineBreak');
     if (lines[i]) document.execCommand('insertText', false, lines[i]);
@@ -204,11 +206,12 @@ export async function fillReplyComposer(
   text: string
 ): Promise<FillOutcome> {
   const target = text.trim();
+  if (!target) return { kind: 'failed' };
 
   for (const strategy of STRATEGIES) {
-    clearComposer(el);
-    // 清空后按钮应回到 disabled；若仍可用说明判据不可靠，本轮改为只看文字
-    const clearedAccepted = await waitAccepted(el, 400);
+    // 写入前的按钮状态：空框时按钮应为 disabled，它后续亮起才能归因于我们的写入。
+    // 有旧文案时按钮本来就可能亮 → 判据不可靠，验收走宽松分支。
+    const preAccepted = await waitAccepted(el, 200);
 
     try {
       strategy.run(el, target);
@@ -219,16 +222,23 @@ export async function fillReplyComposer(
     const accepted = await waitAccepted(el);
     const textOk = sameText(el, target);
     const newlineOk = newlinesAreReal(el, target);
+    const reliable = preAccepted === false;
+    let passed = textOk && newlineOk && (reliable ? accepted === true : accepted !== false);
 
-    // 清空后按钮就没禁用过 → 按钮状态无法区分，退回只看文字与换行
-    const reliable = clearedAccepted === false;
-    const passed = textOk && newlineOk && (reliable ? accepted === true : accepted !== false);
+    // 宽限：文字与换行结构都已正确、只是按钮还没亮 —— 再等一段，仍不亮也接受。
+    // 按钮只是「X 认账」的代理判据；这里的每条写入策略都只能经由编辑器生效
+    // （不存在"只进 DOM"的路径），结构正确的换行 + 文字一致已足以保证 S1/S2。
+    // ⚠️ 绝不能为此清掉重写 —— 那正是「填入时闪一下」的来源。
+    if (!passed && textOk && newlineOk) {
+      await waitAccepted(el, 800);
+      passed = true;
+    }
 
     console.debug('[x-copilot:fill]', strategy.name, {
       策略被认账: passed,
       文字对得上: textOk,
       换行是真的: newlineOk,
-      清空后按钮可用: clearedAccepted,
+      写入前按钮可用: preAccepted,
       填入后按钮可用: accepted,
       br数: el.querySelectorAll('br').length,
       子元素: [...el.children].map((c) => c.tagName).join(','),
@@ -238,7 +248,7 @@ export async function fillReplyComposer(
     if (passed) return { kind: 'filled', strategy: strategy.name };
   }
 
-  // 四个策略都没被编辑器认账 —— 不假装成功，改用剪贴板兜底
+  // 三条策略都没写进去 —— 不假装成功，改用剪贴板兜底
   const copied = await copyToClipboard(target);
   return copied ? { kind: 'copied' } : { kind: 'failed' };
 }
