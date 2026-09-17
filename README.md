@@ -62,7 +62,7 @@ X Copilot 是一个 X（Twitter）浏览辅助扩展：识别你正在看的帖�
 
 ### 方式一：下载即用（推荐）
 
-1. 到 [Releases](https://github.com/Loveca/x-copilot/releases) 下载最新的 `x-copilot-chrome-mv3.zip`，解压到本地任意文件夹
+1. 到 [Releases](https://github.com/Loveca/x-copilot/releases) 下载最新的 `x-copilot-<版本号>-chrome.zip`（形如 `x-copilot-0.1.0-chrome.zip`），解压到本地任意文件夹
 2. 打开 `chrome://extensions/` → 开启右上角**开发者模式** → **加载已解压的扩展程序** → 选择刚解压出的文件夹
 3. 打开 x.com，页面右侧出现 ✦ 悬浮按钮即安装成功
 

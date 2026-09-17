@@ -481,9 +481,9 @@ export class OpenAICompatProvider implements LLMProvider {
           })
         : buildPrompt(context as TweetContext, styles, intent, images.length > 0);
 
-    // 调试：把真正发出去的提示词打到 Service Worker 控制台（chrome://extensions → 检查视图）
-    console.log(
-      `[X Copilot] prompt → mode=${this.mode}${this.ideaMode ? ' idea' : ''} source=${this.sourceKind} ${prompt.length} chars\n\n${prompt}`
+    // 调试：只打元数据，不打正文（正文含用户帖子内容，避免泄露与刷屏）
+    console.debug(
+      `[X Copilot] prompt → mode=${this.mode}${this.ideaMode ? ' idea' : ''} source=${this.sourceKind} ${prompt.length} chars`
     );
 
     // 多模态消息：文字 + image_url 内容块（图片只能出现在 user 消息里，这是各家的共同约束）

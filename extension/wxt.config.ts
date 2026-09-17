@@ -3,9 +3,16 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   manifest: {
     name: 'X Copilot',
-    description: 'AI comment suggestions for X. Copilot, not bot — never auto-sends.',
+    description: 'X 上的 AI 助手：生成回复与帖子，只填入、绝不自动发送。',
     version: '0.1.0',
     permissions: ['storage'],
+    // 自定义 OpenAI 兼容服务的 endpoint 在设置页保存时动态申请
+    optional_host_permissions: ['*://*/*'],
+    icons: {
+      16: 'icon/16.png',
+      48: 'icon/48.png',
+      128: 'icon/128.png',
+    },
     // 请求只从 background SW 发出，host 权限用于绕过 CORS
     host_permissions: [
       'https://x.com/*',

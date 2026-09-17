@@ -333,6 +333,49 @@
     );
   });
 
+  // ---------- 自定义服务商：动态申请 host 权限 ----------
+  // MV3 下 manifest 只声明了内置服务商的 host_permissions；用户填任意 OpenAI
+  // 兼容服务的 Base URL 时，必须在保存时动态申请该 origin，否则 background SW
+  // 发出的请求会被浏览器拦截（表现为请求直接失败 / CORS 报错）。
+  var BUILTIN_LLM_ORIGINS = [
+    'https://api.deepseek.com',
+    'https://generativelanguage.googleapis.com',
+  ];
+
+  function originOfUrl(url) {
+    try {
+      return new URL(url).origin;
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function ensureHostPermission(baseUrl) {
+    return new Promise(function (resolve, reject) {
+      var origin = originOfUrl(baseUrl);
+      if (!origin || BUILTIN_LLM_ORIGINS.indexOf(origin) !== -1) {
+        resolve(true);
+        return;
+      }
+      if (!chrome.permissions || !chrome.permissions.request) {
+        resolve(true);
+        return;
+      }
+      var pattern = origin + '/*';
+      chrome.permissions.contains({ origins: [pattern] }, function (has) {
+        if (chrome.runtime.lastError) has = false;
+        if (has) {
+          resolve(true);
+          return;
+        }
+        chrome.permissions.request({ origins: [pattern] }, function (granted) {
+          if (chrome.runtime.lastError) granted = false;
+          granted ? resolve(true) : reject(new Error('permission-denied'));
+        });
+      });
+    });
+  }
+
   document.getElementById('save-llm').addEventListener('click', function () {
     var key = $apiKey.value.trim();
     if (!key) {
@@ -347,26 +390,38 @@
     var baseUrl = $baseUrl.value.trim() || LLM_DEFAULTS.baseUrl;
     var urlKey = normalizeUrl(baseUrl);
 
-    // 读改写：保留其他服务商记下的 Key，不覆盖
-    chrome.storage.local.get(LLM_KEY).then(function (res) {
-      var prev = res[LLM_KEY] || {};
-      var keys = Object.assign({}, prev.apiKeys || {});
-      keys[urlKey] = key;
-      return chrome.storage.local.set({
-        llmConfig: {
-          apiKey: key,
-          model: model,
-          baseUrl: baseUrl,
-          thinking: $thinking.checked === true,
-          apiKeys: keys,
-        },
+    // 自定义服务商先申请 host 权限，成功才写入（避免存了却请求不了）
+    ensureHostPermission(baseUrl)
+      .then(function () {
+        // 读改写：保留其他服务商记下的 Key，不覆盖
+        return chrome.storage.local.get(LLM_KEY).then(function (res) {
+          var prev = res[LLM_KEY] || {};
+          var keys = Object.assign({}, prev.apiKeys || {});
+          keys[urlKey] = key;
+          return chrome.storage.local.set({
+            llmConfig: {
+              apiKey: key,
+              model: model,
+              baseUrl: baseUrl,
+              thinking: $thinking.checked === true,
+              apiKeys: keys,
+            },
+          });
+        });
+      })
+      .then(function () {
+        llmKeys[urlKey] = key;
+        setStatus($statusLlm, '已保存', true);
+      })
+      .catch(function (err) {
+        setStatus(
+          $statusLlm,
+          err && err.message === 'permission-denied'
+            ? '未授权该域名，无法向它发请求。请允许授权后重试，或换回内置服务商。'
+            : '保存失败，请重试。',
+          false
+        );
       });
-    }).then(function () {
-      llmKeys[urlKey] = key;
-      setStatus($statusLlm, '已保存', true);
-    }).catch(function () {
-      setStatus($statusLlm, '保存失败，请重试。', false);
-    });
   });
 
   // 深度思考开关即时生效（读改写，避免覆盖掉 API Key 等字段）
