@@ -76,9 +76,11 @@ sanitize the wording into something polite and tidy.
 
 Line breaks are part of the style. Never write one solid block:
 
-* break the text into short lines (usually one sentence or one clause per line);
-* separate groups of short lines with a blank line;
-* a post may be 2-4 such chunks;
+* break the text into 2-4 chunks, separated by ONE blank line;
+* a chunk is either a short paragraph (one to three sentences flowing together, NO line break
+  inside) or two or three very short lines;
+* do NOT put a line break after every sentence mechanically — consecutive short sentences that
+  belong together stay on the same line; break a line only when the rhythm genuinely calls for it;
 * inside the JSON text field, write every line break as the escape sequence \n (see OUTPUT).
 
 Invented personal stories are allowed and encouraged. Chinese X runs on made-up anecdotes, jokes,

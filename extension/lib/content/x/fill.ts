@@ -23,12 +23,21 @@
  */
 import { isPostButtonEnabled } from './composer-detector';
 
-/** 候选策略（按"最可能被 DraftJS 认账"排序），见下方各自注释 */
+/**
+ * 候选策略（按"最可能被 DraftJS 认账"排序），见下方各自注释。
+ *
+ * ⚠️ 2026-09-17 调整（修 S4）：
+ *   - **移除「合成 beforeinput」**——DraftJS 的 editOnBeforeInput 收到合成事件后可能只更新
+ *     EditorState 而不走完整的 onChange → React → 重渲染链，正是 S4（状态变、界面不刷新）的头号嫌疑。
+ *   - **合成 paste 提为首选**——SO 79666573（针对 X 本站）实证：合成 paste 是唯一同时做到
+ *     「显示有换行 + 发出去仍有换行」的路径；此前它"失败"多半是旧验收探针取错按钮（1.0.1）导致的误判。
+ *   - **清空改单遍**——「selectAll+delete 连做两遍」会在编辑器状态已清空后再执行一次 delete，
+ *     造成 DOM 与 EditorState 从起点就错位（S4 的 H2 嫌疑）。
+ */
 const STRATEGIES: { name: string; run: (el: HTMLElement, text: string) => void }[] = [
-  { name: '1-insertText', run: insertTextOnce },
-  { name: '2-合成beforeinput', run: beforeInputOnce },
-  { name: '3-合成paste', run: pasteOnce },
-  { name: '4-逐行+insertLineBreak', run: insertLineByLine },
+  { name: '1-合成paste', run: pasteOnce },
+  { name: '2-insertText', run: insertTextOnce },
+  { name: '3-逐行+insertLineBreak', run: insertLineByLine },
 ];
 
 /**
@@ -125,23 +134,7 @@ function insertTextOnce(el: HTMLElement, text: string): void {
   document.execCommand('insertText', false, text);
 }
 
-/** 策略 2：合成 beforeinput —— DraftJS 的 editOnBeforeInput 收到后会自己更新 EditorState */
-function beforeInputOnce(el: HTMLElement, text: string): void {
-  el.focus();
-  try {
-    const ev = new InputEvent('beforeinput', {
-      inputType: 'insertText',
-      data: text,
-      bubbles: true,
-      cancelable: true,
-    });
-    el.dispatchEvent(ev);
-  } catch {
-    /* 交给下一个策略 */
-  }
-}
-
-/** 策略 3：合成 paste 事件（走编辑器自己的粘贴处理，换行会成为编辑器认可的换行节点） */
+/** 策略 1：合成 paste 事件（走编辑器自己的粘贴处理，换行会成为编辑器认可的换行节点） */
 function pasteOnce(el: HTMLElement, text: string): void {
   try {
     const dt = new DataTransfer();
