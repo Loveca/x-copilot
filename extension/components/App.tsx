@@ -490,6 +490,9 @@ export function App() {
   const selectHot = useCallback(() => {
     setIdeaTab('hot');
     setIntent('');
+    setReplies([]);
+    setFilledId(null);
+    setFilledIdeaId(null);
     pickedSourceRef.current = { kind: 'hot' };
     const list = collectTimelineTweets(5);
     setHotTweets(list);
@@ -500,6 +503,9 @@ export function App() {
   const selectTrends = useCallback(() => {
     setIdeaTab('trend');
     setIntent('');
+    setReplies([]);
+    setFilledId(null);
+    setFilledIdeaId(null);
     pickedSourceRef.current = { kind: 'trend' };
     const list = collectTrends(10);
     setTrends(list);
@@ -703,6 +709,9 @@ export function App() {
                   onClick={() => {
                     setIdeaTab('idea');
                     setIntent('');
+                    setReplies([]);
+                    setFilledId(null);
+                    setFilledIdeaId(null);
                     pickedSourceRef.current = { kind: 'quick' };
                   }}
                   title="顶级认知 / 冷知识 / 扎心真相，各来一条"
