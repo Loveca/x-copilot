@@ -95,7 +95,7 @@ X Reply 输入框是 contenteditable + 自研编辑器，禁止用 `innerText` �
 
 ### D5：Selector 集中管理
 
-所有 X DOM selector 只存在于 `src/content/x/selectors.ts`，其余模块通过语义化引用。selector 失效只改这一个文件。
+所有 X DOM selector 只存在于 `lib/content/x/selectors.ts`，其余模块通过语义化引用。selector 失效只改这一个文件。
 
 ### D6：Options 页为 `public/options.html` 静态实现（原生 JS，无 React）
 

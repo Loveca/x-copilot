@@ -379,12 +379,11 @@ X 的输入框可能是：
 建议：
 
 ```text
-src/content/x/
+lib/content/x/
 ├── selectors.ts
 ├── tweet-detector.ts
 ├── composer-detector.ts
-├── composer.ts
-└── dom-utils.ts
+└── fill.ts
 ```
 
 ---
@@ -465,6 +464,8 @@ interface ReplyCandidate {
 ---
 
 # 14. Backend
+
+> ⚠️ 本节为**初版设想**，实际实现**未采用独立后端**：扩展直接调用 OpenAI 兼容的模型 Endpoint（详见 `docs/ARCHITECTURE.md` §1 技术栈与 §2 D2）。下方结构图仅供参考，仓库内不存在 `backend/` 目录。
 
 第一版可以采用：
 
@@ -589,30 +590,30 @@ Requirements:
 x-copilot/
 │
 ├── extension/
-│   ├── src/
-│   │   ├── background/
-│   │   ├── content/
-│   │   │   ├── index.ts
-│   │   │   └── x/
-│   │   │       ├── tweet-detector.ts
-│   │   │       ├── composer-detector.ts
-│   │   │       ├── composer.ts
-│   │   │       ├── selectors.ts
-│   │   │       └── dom-utils.ts
-│   │   │
-│   │   ├── ui/
-│   │   │   ├── floating-button/
-│   │   │   └── panel/
-│   │   │
-│   │   ├── api/
-│   │   ├── types/
-│   │   └── utils/
-│   │
-│   ├── public/
-│   ├── manifest.json
+│   ├── entrypoints/
+│   │   ├── background.ts
+│   │   └── x.content.tsx
+│   ├── components/          # React UI（渲染进 Shadow DOM）
+│   │   ├── App.tsx
+│   │   ├── FloatingButton.tsx
+│   │   ├── Panel.tsx
+│   │   ├── ReplyCard.tsx
+│   │   └── styles.ts
+│   ├── lib/
+│   │   ├── content/x/       # X 页面侧：识别 / 写入 / 清理
+│   │   │   ├── selectors.ts
+│   │   │   ├── tweet-detector.ts
+│   │   │   ├── composer-detector.ts
+│   │   │   └── fill.ts
+│   │   ├── llm/             # 服务商适配 / 流式 / 提示词
+│   │   └── config.ts
+│   ├── prompts/             # 提示词模板（Markdown，构建期内联）
+│   ├── public/              # 设置页（静态 HTML + JS）
+│   ├── types/
+│   ├── wxt.config.ts
 │   └── package.json
 │
-├── backend/
+├── backend/                # （初版设想，未实现；实际无独立后端，见 ARCHITECTURE.md）
 │   ├── app/
 │   │   ├── main.py
 │   │   ├── api/
